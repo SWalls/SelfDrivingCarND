@@ -11,42 +11,29 @@ import sklearn
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
-lines = []
-with open('data/driving_log.csv') as csvfile:
-    reader = csv.reader(csvfile)
-    for line in reader:
-        try:
-            float(line[3])
-        except ValueError:
-            continue
-        lines.append(line)
-        copy = list(line)
-        copy.append("flip")
-        lines.append(copy)
-with open('newdata/driving_log.csv') as csvfile:
-    reader = csv.reader(csvfile)
-    for line in reader:
-        try:
-            float(line[3])
-        except ValueError:
-            continue
-        lines.append(line)
-        copy = list(line)
-        copy.append("flip")
-        lines.append(copy)
-with open('recoverydata/driving_log.csv') as csvfile:
-    reader = csv.reader(csvfile)
-    for line in reader:
-        try:
-            float(line[3])
-        except ValueError:
-            continue
-        lines.append(line)
-        copy = list(line)
-        copy.append("flip")
-        lines.append(copy)
+samples = []
 
-train_samples, validation_samples = train_test_split(lines, test_size=0.2)
+def load_samples(csvfilename):
+    global samples
+    with open(csvfilename) as csvfile:
+        reader = csv.reader(csvfile)
+        for line in reader:
+            try:
+                float(line[3])
+            except ValueError:
+                continue
+            samples.append(line)
+            copy = list(line)
+            copy.append("flip")
+            samples.append(copy)
+
+load_samples('data/driving_log.csv')
+load_samples('newdata/driving_log.csv')
+load_samples('recoverydata/driving_log.csv')
+load_samples('recoverydata3/driving_log.csv')
+load_samples('recoverydata4/driving_log.csv')
+
+train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
 def generator(samples, batch_size=32):
     num_samples = len(samples)
@@ -82,8 +69,8 @@ def generator(samples, batch_size=32):
             yield sklearn.utils.shuffle(X_train, y_train)
 
 # compile and train the model using the generator function
-train_generator = generator(train_samples, batch_size=32)
-validation_generator = generator(validation_samples, batch_size=32)
+train_generator = generator(train_samples, batch_size=1024)
+validation_generator = generator(validation_samples, batch_size=1024)
 
 model = Sequential()
 model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160,320,3)))
