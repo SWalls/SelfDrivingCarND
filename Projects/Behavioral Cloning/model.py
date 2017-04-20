@@ -38,8 +38,10 @@ def generator(samples, batch_size=32):
             for batch_sample in batch_samples:
                 old_path = batch_sample[0]
                 path_comps = old_path.split('/')
-                print (path_comps)
-                folder = path_comps[-3]
+                if len(path_comps) <= 2:
+                    folder = 'data'
+                else:
+                    folder = path_comps[-3]
                 filename = path_comps[-1]
                 new_path = folder+'/IMG/'+filename
                 center_image = cv2.imread(new_path)
