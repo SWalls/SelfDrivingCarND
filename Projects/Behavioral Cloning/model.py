@@ -6,6 +6,7 @@ from keras.models import Sequential
 from keras.layers.core import Lambda, Dense, Activation, Flatten, Dropout
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
+import sklearn
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
