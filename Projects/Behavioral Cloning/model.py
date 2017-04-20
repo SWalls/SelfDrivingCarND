@@ -20,14 +20,12 @@ with open('newdata/driving_log.csv') as csvfile:
     for line in reader:
         lines.append(line)
 
-'''
 recoverydata_cutoff = len(lines)
 
-with open('recoverydata2/driving_log.csv') as csvfile:
+with open('recoverydata3/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
         lines.append(line)
-'''
 
 images = []
 measurements = []
@@ -38,10 +36,8 @@ for i in range(1, len(lines)):
     filename = source_path.split('/')[-1]
     if i == newdata_cutoff:
         folder = 'newdata'
-    '''
     if i == recoverydata_cutoff:
-        folder = 'recoverydata2'
-    '''
+        folder = 'recoverydata3'
     current_path = folder + '/IMG/' + filename
     image = cv2.imread(current_path)
     images.append(image)
@@ -63,6 +59,7 @@ model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160,320,3)))
 model.add(Cropping2D(cropping=((70,25), (0,0))))
 model.add(Convolution2D(24, 5, 5))
 model.add(MaxPooling2D((2, 2)))
+model.add(Dropout(0.5))
 model.add(Activation('relu'))
 model.add(Convolution2D(36, 5, 5))
 model.add(MaxPooling2D((2, 2)))
@@ -71,7 +68,6 @@ model.add(Convolution2D(48, 5, 5))
 model.add(MaxPooling2D((2, 2)))
 model.add(Activation('relu'))
 model.add(Convolution2D(64, 3, 3))
-model.add(Dropout(0.5))
 model.add(Activation('relu'))
 model.add(Flatten())
 model.add(Dense(100))
@@ -80,6 +76,6 @@ model.add(Dense(10))
 model.add(Dense(1))
 
 model.compile(loss='mse', optimizer='adam')
-model.fit(X_train, y_train, validation_split=0.2, shuffle=True, nb_epoch=3)
+model.fit(X_train, y_train, validation_split=0.3, shuffle=True, nb_epoch=3)
 
 model.save('model.h5')
