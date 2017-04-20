@@ -8,46 +8,58 @@ from keras.layers.core import Lambda, Dense, Activation, Flatten, Dropout
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
 import sklearn
+from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
 lines = []
 with open('data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
-    i = 0
     for line in reader:
-        i += 1
-        if i == 1:
+        try:
+            float(line[3])
+        except ValueError:
             continue
         lines.append(line)
+        copy = list(line)
+        copy.append("flip")
+        lines.append(copy)
 with open('newdata/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
-    i = 0
     for line in reader:
-        i += 1
-        if i == 1:
+        try:
+            float(line[3])
+        except ValueError:
             continue
         lines.append(line)
+        copy = list(line)
+        copy.append("flip")
+        lines.append(copy)
 with open('recoverydata/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
-    i = 0
     for line in reader:
-        i += 1
-        if i == 1:
+        try:
+            float(line[3])
+        except ValueError:
             continue
         lines.append(line)
+        copy = list(line)
+        copy.append("flip")
+        lines.append(copy)
 
 train_samples, validation_samples = train_test_split(lines, test_size=0.2)
 
 def generator(samples, batch_size=32):
-    in_size = int(batch_size/2.)
     num_samples = len(samples)
+    shuffle(samples)
     while 1: # Loop forever so the generator never terminates
-        for offset in range(0, num_samples, in_size):
-            batch_samples = samples[offset:offset+in_size]
+        for offset in range(0, num_samples, batch_size):
+            batch_samples = samples[offset:offset+batch_size]
 
             images = []
             angles = []
             for batch_sample in batch_samples:
+                last_ele = batch_sample[-1]
+                flipped = last_ele == "flip"
                 old_path = batch_sample[0]
                 path_comps = old_path.split('/')
                 if len(path_comps) <= 2:
@@ -58,10 +70,11 @@ def generator(samples, batch_size=32):
                 new_path = folder+'/IMG/'+filename
                 center_image = cv2.imread(new_path)
                 center_angle = float(batch_sample[3])
+                if flipped:
+                    center_image = cv2.flip(center_image, 1)
+                    center_angle = center_angle * -1.
                 images.append(center_image)
                 angles.append(center_angle)
-                images.append(cv2.flip(center_image, 1))
-                angles.append(center_angle*-1.)
 
             # trim image to only see section with road
             X_train = np.array(images)
