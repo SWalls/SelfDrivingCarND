@@ -30,7 +30,6 @@ def generator(samples, batch_size=32):
     in_size = int(batch_size/2.)
     num_samples = len(samples)
     while 1: # Loop forever so the generator never terminates
-        shuffle(samples)
         for offset in range(0, num_samples, in_size):
             batch_samples = samples[offset:offset+in_size]
 
@@ -42,7 +41,6 @@ def generator(samples, batch_size=32):
                 folder = path_comps[-3]
                 filename = path_comps[-1]
                 new_path = folder+'/IMG/'+filename
-                print (new_path)
                 center_image = cv2.imread(new_path)
                 center_angle = float(batch_sample[3])
                 images.append(center_image)
