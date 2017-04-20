@@ -20,15 +20,24 @@ with open('newdata/driving_log.csv') as csvfile:
     for line in reader:
         lines.append(line)
 
+recoverydata_cutoff = len(lines)
+
+with open('recoverydata/driving_log.csv') as csvfile:
+    reader = csv.reader(csvfile)
+    for line in reader:
+        lines.append(line)
+
 images = []
 measurements = []
+folder = 'data'
 for i in range(1, len(lines)):
     line = lines[i]
     source_path = line[0]
     filename = source_path.split('/')[-1]
-    folder = 'data'
-    if i >= newdata_cutoff:
+    if i == newdata_cutoff:
         folder = 'newdata'
+    if i == recoverydata_cutoff:
+        folder = 'recoverydata'
     current_path = folder + '/IMG/' + filename
     image = cv2.imread(current_path)
     images.append(image)
