@@ -20,12 +20,14 @@ with open('newdata/driving_log.csv') as csvfile:
     for line in reader:
         lines.append(line)
 
+'''
 recoverydata_cutoff = len(lines)
 
 with open('recoverydata2/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
         lines.append(line)
+'''
 
 images = []
 measurements = []
@@ -36,8 +38,10 @@ for i in range(1, len(lines)):
     filename = source_path.split('/')[-1]
     if i == newdata_cutoff:
         folder = 'newdata'
+    '''
     if i == recoverydata_cutoff:
         folder = 'recoverydata2'
+    '''
     current_path = folder + '/IMG/' + filename
     image = cv2.imread(current_path)
     images.append(image)
@@ -71,9 +75,7 @@ model.add(Dropout(0.5))
 model.add(Activation('relu'))
 model.add(Flatten())
 model.add(Dense(100))
-model.add(Activation('relu'))
 model.add(Dense(50))
-model.add(Activation('relu'))
 model.add(Dense(10))
 model.add(Dense(1))
 
