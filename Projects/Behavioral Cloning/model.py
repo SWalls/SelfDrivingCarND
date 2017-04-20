@@ -7,7 +7,6 @@ from keras.layers import Cropping2D
 from keras.layers.core import Lambda, Dense, Activation, Flatten, Dropout
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
-import sklearn
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
@@ -40,7 +39,7 @@ train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 def generator(samples, batch_size=32):
     num_samples = len(samples)
     while 1: # Loop forever so the generator never terminates
-        shuffle(samples)
+        samples = shuffle(samples)
         for offset in range(0, num_samples, batch_size):
             batch_samples = samples[offset:offset+batch_size]
 
@@ -68,7 +67,7 @@ def generator(samples, batch_size=32):
             # trim image to only see section with road
             X_train = np.array(images)
             y_train = np.array(angles)
-            yield sklearn.utils.shuffle(X_train, y_train)
+            yield shuffle(X_train, y_train)
 
 # compile and train the model using the generator function
 train_generator = generator(train_samples, batch_size=64)
