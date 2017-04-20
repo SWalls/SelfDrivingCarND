@@ -48,7 +48,6 @@ model.add(Dense(128))
 model.add(Activation('relu'))
 model.add(Dense(43))
 model.add(Activation('softmax'))
-model.add(Flatten())
 model.add(Dense(1))
 
 model.compile(loss='mse', optimizer='adam')
