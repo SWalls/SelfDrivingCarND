@@ -41,8 +41,9 @@ def generator(samples, batch_size=32):
                 path_comps = batch_sample[0].split('/')
                 folder = path_comps[-3]
                 filename = path_comps[-1]
-                path = folder+'/IMG/'+filename
-                center_image = cv2.imread(path)
+                new_path = folder+'/IMG/'+filename
+                print (new_path)
+                center_image = cv2.imread(new_path)
                 center_angle = float(batch_sample[3])
                 images.append(center_image)
                 angles.append(center_angle)
