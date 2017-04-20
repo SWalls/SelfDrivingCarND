@@ -69,8 +69,8 @@ def generator(samples, batch_size=32):
             yield sklearn.utils.shuffle(X_train, y_train)
 
 # compile and train the model using the generator function
-train_generator = generator(train_samples, batch_size=1024)
-validation_generator = generator(validation_samples, batch_size=1024)
+train_generator = generator(train_samples, batch_size=64)
+validation_generator = generator(validation_samples, batch_size=64)
 
 model = Sequential()
 model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160,320,3)))
