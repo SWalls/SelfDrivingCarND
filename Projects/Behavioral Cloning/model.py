@@ -15,16 +15,10 @@ with open('data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
         lines.append(line)
-
-newdata_cutoff = len(lines)
-
 with open('newdata/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
         lines.append(line)
-
-recoverydata_cutoff = len(lines)
-
 with open('recoverydata/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
@@ -33,12 +27,12 @@ with open('recoverydata/driving_log.csv') as csvfile:
 train_samples, validation_samples = train_test_split(lines, test_size=0.2)
 
 def generator(samples, batch_size=32):
-    batch_size = int(batch_size/2.)
+    in_size = int(batch_size/2.)
     num_samples = len(samples)
     while 1: # Loop forever so the generator never terminates
         shuffle(samples)
-        for offset in range(0, num_samples, batch_size):
-            batch_samples = samples[offset:offset+batch_size]
+        for offset in range(0, num_samples, in_size):
+            batch_samples = samples[offset:offset+in_size]
 
             images = []
             angles = []
