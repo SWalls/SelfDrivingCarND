@@ -37,7 +37,7 @@ def generator(samples, batch_size=32):
             angles = []
             for batch_sample in batch_samples:
                 old_path = batch_sample[0]
-                path_comps = batch_sample[0].split('/')
+                path_comps = old_path.split('/')
                 folder = path_comps[-3]
                 filename = path_comps[-1]
                 new_path = folder+'/IMG/'+filename
