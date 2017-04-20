@@ -35,7 +35,7 @@ load_samples('newdata')
 # load_samples('recoverydata3')
 # load_samples('recoverydata4')
 # load_samples('recoverydata5')
-# load_samples('recoverydata6')
+load_samples('recoverydata6')
 # load_samples('track2data')
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
