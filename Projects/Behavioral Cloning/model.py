@@ -22,7 +22,7 @@ with open('newdata/driving_log.csv') as csvfile:
 
 recoverydata_cutoff = len(lines)
 
-with open('recoverydata/driving_log.csv') as csvfile:
+with open('recoverydata2/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
         lines.append(line)
