@@ -10,7 +10,7 @@ from keras.layers.pooling import MaxPooling2D
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
-USE_FLIPPED = False
+USE_FLIPPED = True
 
 samples = []
 
@@ -29,13 +29,14 @@ def load_samples(data_dir):
                 copy.append("flip")
                 samples.append(copy)
 
-load_samples('data')
+# load_samples('data')
 load_samples('newdata')
 load_samples('reversedata')
 # load_samples('recoverydata')
-# load_samples('recoverydata3')
+load_samples('recoverydata3')
 load_samples('recoverydata4')
 load_samples('recoverydata5')
+load_samples('recoverydata6')
 # load_samples('track2data')
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
@@ -73,12 +74,12 @@ def generator(samples, batch_size=32):
             yield shuffle(X_train, y_train)
 
 # compile and train the model using the generator function
-train_generator = generator(train_samples, batch_size=128)
-validation_generator = generator(validation_samples, batch_size=128)
+train_generator = generator(train_samples, batch_size=64)
+validation_generator = generator(validation_samples, batch_size=64)
 
 model = Sequential()
 model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160,320,3)))
-model.add(Cropping2D(cropping=((60,0), (0,0))))
+model.add(Cropping2D(cropping=((40,10), (0,0))))
 model.add(Convolution2D(24, 5, 5))
 model.add(MaxPooling2D((2, 2)))
 model.add(Activation('relu'))
