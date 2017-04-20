@@ -32,6 +32,7 @@ load_samples('newdata/driving_log.csv')
 load_samples('recoverydata/driving_log.csv')
 load_samples('recoverydata3/driving_log.csv')
 load_samples('recoverydata4/driving_log.csv')
+load_samples('track2data/driving_log.csv')
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
@@ -74,7 +75,7 @@ validation_generator = generator(validation_samples, batch_size=64)
 
 model = Sequential()
 model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160,320,3)))
-model.add(Cropping2D(cropping=((50,20), (0,0))))
+model.add(Cropping2D(cropping=((75,0), (0,0))))
 model.add(Convolution2D(24, 5, 5))
 model.add(MaxPooling2D((2, 2)))
 model.add(Activation('relu'))
