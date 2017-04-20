@@ -33,30 +33,27 @@ with open('recoverydata/driving_log.csv') as csvfile:
 train_samples, validation_samples = train_test_split(lines, test_size=0.2)
 
 def generator(samples, batch_size=32):
-    batch_size = int(batch_size/2)
+    batch_size = int(batch_size/2.)
     num_samples = len(samples)
     while 1: # Loop forever so the generator never terminates
         shuffle(samples)
         for offset in range(0, num_samples, batch_size):
             batch_samples = samples[offset:offset+batch_size]
 
-            folder = 'data'
-            if offset >= recoverydata_cutoff:
-                folder = 'recoverydata'
-            elif offset >= newdata_cutoff:
-                folder = 'newdata'
-
             images = []
             angles = []
             for batch_sample in batch_samples:
-                filename = batch_sample[0].split('/')[-1]
+                old_path = batch_sample[0]
+                path_comps = batch_sample[0].split('/')
+                folder = path_comps[-3]
+                filename = path_comps[-1]
                 path = folder+'/IMG/'+filename
                 center_image = cv2.imread(path)
                 center_angle = float(batch_sample[3])
                 images.append(center_image)
                 angles.append(center_angle)
                 images.append(cv2.flip(center_image, 1))
-                angles.append(center_angle*-1.0)
+                angles.append(center_angle*-1.)
 
             # trim image to only see section with road
             X_train = np.array(images)
