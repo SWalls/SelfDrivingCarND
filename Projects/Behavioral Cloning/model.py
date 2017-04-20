@@ -37,7 +37,7 @@ for i in range(1, len(lines)):
     if i == newdata_cutoff:
         folder = 'newdata'
     if i == recoverydata_cutoff:
-        folder = 'recoverydata'
+        folder = 'recoverydata2'
     current_path = folder + '/IMG/' + filename
     image = cv2.imread(current_path)
     images.append(image)
@@ -78,6 +78,6 @@ model.add(Dense(10))
 model.add(Dense(1))
 
 model.compile(loss='mse', optimizer='adam')
-model.fit(X_train, y_train, validation_split=0.2, shuffle=True, nb_epoch=3)
+model.fit(X_train, y_train, validation_split=0.2, shuffle=True, nb_epoch=5)
 
 model.save('model.h5')
