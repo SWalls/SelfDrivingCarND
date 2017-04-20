@@ -10,11 +10,13 @@ from keras.layers.pooling import MaxPooling2D
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
+USE_FLIPPED = False
+
 samples = []
 
-def load_samples(csvfilename):
+def load_samples(data_dir):
     global samples
-    with open(csvfilename) as csvfile:
+    with open(data_dir+"/driving_log.csv") as csvfile:
         reader = csv.reader(csvfile)
         for line in reader:
             try:
@@ -22,17 +24,19 @@ def load_samples(csvfilename):
             except ValueError:
                 continue
             samples.append(line)
-            copy = list(line)
-            copy.append("flip")
-            samples.append(copy)
+            if USE_FLIPPED:
+                copy = list(line)
+                copy.append("flip")
+                samples.append(copy)
 
-load_samples('data/driving_log.csv')
-load_samples('newdata/driving_log.csv')
-# load_samples('recoverydata/driving_log.csv')
-load_samples('recoverydata3/driving_log.csv')
-load_samples('recoverydata4/driving_log.csv')
-load_samples('recoverydata5/driving_log.csv')
-# load_samples('track2data/driving_log.csv')
+load_samples('data')
+load_samples('newdata')
+load_samples('reversedata')
+# load_samples('recoverydata')
+# load_samples('recoverydata3')
+load_samples('recoverydata4')
+load_samples('recoverydata5')
+# load_samples('track2data')
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
@@ -46,8 +50,7 @@ def generator(samples, batch_size=32):
             images = []
             angles = []
             for batch_sample in batch_samples:
-                last_ele = batch_sample[-1]
-                flipped = last_ele == "flip"
+                flipped = batch_sample[-1] == "flip"
                 old_path = batch_sample[0]
                 path_comps = old_path.split('/')
                 if len(path_comps) <= 2:
@@ -70,18 +73,18 @@ def generator(samples, batch_size=32):
             yield shuffle(X_train, y_train)
 
 # compile and train the model using the generator function
-train_generator = generator(train_samples, batch_size=64)
-validation_generator = generator(validation_samples, batch_size=64)
+train_generator = generator(train_samples, batch_size=256)
+validation_generator = generator(validation_samples, batch_size=256)
 
 model = Sequential()
 model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160,320,3)))
 model.add(Cropping2D(cropping=((60,0), (0,0))))
 model.add(Convolution2D(24, 5, 5))
 model.add(MaxPooling2D((2, 2)))
-model.add(Dropout(0.5))
 model.add(Activation('relu'))
 model.add(Convolution2D(36, 5, 5))
 model.add(MaxPooling2D((2, 2)))
+model.add(Dropout(0.5))
 model.add(Activation('relu'))
 model.add(Convolution2D(48, 5, 5))
 model.add(MaxPooling2D((2, 2)))
