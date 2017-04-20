@@ -32,7 +32,8 @@ load_samples('newdata/driving_log.csv')
 load_samples('recoverydata/driving_log.csv')
 load_samples('recoverydata3/driving_log.csv')
 load_samples('recoverydata4/driving_log.csv')
-load_samples('track2data/driving_log.csv')
+load_samples('recoverydata5/driving_log.csv')
+# load_samples('track2data/driving_log.csv')
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
