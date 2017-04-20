@@ -13,15 +13,27 @@ from sklearn.model_selection import train_test_split
 lines = []
 with open('data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
+    i = 0
     for line in reader:
+        i += 1
+        if i == 1:
+            continue
         lines.append(line)
 with open('newdata/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
+    i = 0
     for line in reader:
+        i += 1
+        if i == 1:
+            continue
         lines.append(line)
 with open('recoverydata/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
+    i = 0
     for line in reader:
+        i += 1
+        if i == 1:
+            continue
         lines.append(line)
 
 train_samples, validation_samples = train_test_split(lines, test_size=0.2)
