@@ -87,7 +87,8 @@ ch, row, col = 3, 80, 320
 
 model = Sequential()
 model.add(Lambda(lambda x: x/127.5 - 1.,
-        input_shape=(ch, row, col)))
+        input_shape=(row, col, ch)),
+        output_shape=(row, col, ch)))
 model.add(Convolution2D(24, 5, 5))
 model.add(MaxPooling2D((2, 2)))
 model.add(Activation('relu'))
