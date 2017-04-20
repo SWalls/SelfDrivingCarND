@@ -3,6 +3,7 @@ import csv
 import cv2
 import numpy as np
 from keras.models import Sequential
+from keras.layers import Cropping2D
 from keras.layers.core import Lambda, Dense, Activation, Flatten, Dropout
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
@@ -84,12 +85,9 @@ def generator(samples, batch_size=32):
 train_generator = generator(train_samples, batch_size=32)
 validation_generator = generator(validation_samples, batch_size=32)
 
-ch, row, col = 3, 80, 320
-
 model = Sequential()
-model.add(Lambda(lambda x: x/127.5 - 1.,
-        input_shape=(row, col, ch),
-        output_shape=(row, col, ch)))
+model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160,320,3)))
+model.add(Cropping2D(cropping=((70,25), (0,0))))
 model.add(Convolution2D(24, 5, 5))
 model.add(MaxPooling2D((2, 2)))
 model.add(Activation('relu'))
