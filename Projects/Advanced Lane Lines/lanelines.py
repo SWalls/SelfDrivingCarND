@@ -61,12 +61,12 @@ class Line():
 
     def update(self, fit, fitx, curverad, x, y):
         global img_shape
-        img_center = img_shape[0]/2.
+        img_center_x = img_shape[0]/2.
         self.detected = True
         self.add_fit_x_vals(fitx)
         self.add_fit(fit)
         self.radius_of_curvature = curverad
-        self.line_base_pos = img_center - x[0]
+        self.line_base_pos = img_center_x - x[0]
         self.allx = x
         self.ally = y
 
@@ -116,14 +116,12 @@ def undistort(img, cam_mtx, cam_dist):
     return undist
 
 # Perspective transform (warp) image.
-def perspective_transform(img, src, dst):
-    # Get M, the transform matrix, using src and dst points.
-    M = cv2.getPerspectiveTransform(src, dst)
+def perspective_transform(img, M):
     # Warp the image to a top-down view
     shape = (img.shape[1], img.shape[0])
     warped = cv2.warpPerspective(img, M, \
         shape, flags=cv2.INTER_LINEAR)
-    return warped, M
+    return warped
 
 # Applies Sobel x or y, then takes an absolute value and applies a threshold.
 def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0, 255)):
@@ -193,11 +191,8 @@ def hls_thresh(img, channel='s', thresh=(170, 255)):
     sbinary[(hls_channel >= thresh[0]) & (hls_channel <= thresh[1])] = 1
     return sbinary
 
-def get_undistorted_binary_lanes(img_filename, cam_mtx, cam_dist, src, dst):
-    # Read image from file, and undistort.
-    image = cv2.imread("test_images/%s.jpg" % img_filename)
-    undist = undistort(image, cam_mtx, cam_dist)
-    cv2.imwrite("output_images/%s_undistort.jpg" % img_filename, undist)
+def binarize(img_filename, undist, cam_mtx, cam_dist):
+    global transform_M
 
     # Sobel kernel size
     ksize = 5
@@ -242,9 +237,9 @@ def get_undistorted_binary_lanes(img_filename, cam_mtx, cam_dist, src, dst):
     cv2.imwrite("output_images/%s_mask.jpg" % img_filename, masked*255)
 
     # Do perspective transform of masked thresholded image.
-    warped, M = perspective_transform(undist, src, dst)
+    warped = perspective_transform(undist, transform_M)
     cv2.imwrite("output_images/%s_persp.jpg" % img_filename, warped)
-    binary_warped, Mm = perspective_transform(masked, src, dst)
+    binary_warped = perspective_transform(masked, transform_M)
     cv2.imwrite("output_images/%s_persp_thresh.jpg" % img_filename, binary_warped*255)
 
     return binary_warped
@@ -324,6 +319,7 @@ def find_lanes_sliding_window(img_filename, binary_warped, left_line, right_line
 
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+    plt.clf()
     plt.imshow(out_img)
     plt.plot(left_fitx, ploty, color='yellow')
     plt.plot(right_fitx, ploty, color='yellow')
@@ -338,6 +334,8 @@ def find_lanes_sliding_window(img_filename, binary_warped, left_line, right_line
     # Update lines definitions.
     left_line.update(left_fit, left_fitx, left_curverad, leftx, lefty)
     right_line.update(right_fit, right_fitx, right_curverad, rightx, righty)
+
+    return left_fitx, right_fitx, ploty
 
 def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     # Assume you now have a new warped binary image 
@@ -383,6 +381,7 @@ def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     cv2.fillPoly(window_img, np.int_([left_line_pts]), (0,255, 0))
     cv2.fillPoly(window_img, np.int_([right_line_pts]), (0,255, 0))
     result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
+    plt.clf()
     plt.imshow(result)
     plt.plot(left_fitx, ploty, color='yellow')
     plt.plot(right_fitx, ploty, color='yellow')
@@ -397,6 +396,8 @@ def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     # Update lines definitions.
     left_line.update(left_fit, left_fitx, left_curverad, leftx, lefty)
     right_line.update(right_fit, right_fitx, right_curverad, rightx, righty)
+
+    return left_fitx, right_fitx, ploty
 
 def pixel_curve_radius(left_fit, right_fit, ploty):
     # Define y-value where we want radius of curvature
@@ -421,7 +422,28 @@ def meter_curve_radius(left_fit, right_fit, ploty, leftx, rightx):
     # Now our radius of curvature is in meters
     return left_curverad, right_curverad
 
-img_filename = "straight_lines2"
+def draw_lane(img_filename, undist, binary_warped, left_fitx, right_fitx, ploty):
+    global inverse_M
+
+    # Create an image to draw the lines on
+    warp_zero = np.zeros_like(binary_warped).astype(np.uint8)
+    color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+
+    # Recast the x and y points into usable format for cv2.fillPoly()
+    pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+    pts = np.hstack((pts_left, pts_right))
+
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
+
+    # Warp the blank back to original image space using inverse perspective matrix
+    newwarp = perspective_transform(color_warp, inverse_M)
+    # Combine the result with the original image
+    result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
+    cv2.imwrite("output_images/%s_lane_drawn.jpg" % img_filename, result)
+
+img_filename = "test1"
 
 # Get camera matrix and distortion coefficients.
 cam_mtx, cam_dist = calibrate_camera(img_shape)
@@ -440,14 +462,25 @@ topp = -3000 # top padding offset
 botp = 0 # bottom padding offset
 undist_dst = np.float32([[xp,topp],[w-xp,topp],[w-xp,h-botp],[xp,h-botp]])
 
-# Get binary image of undistorted and unwarped lanes after threhsolding.
-binary_warped = get_undistorted_binary_lanes(img_filename, \
-    cam_mtx, cam_dist, undist_src, undist_dst)
+# Get the transform matrix, using src and dst points.
+transform_M = cv2.getPerspectiveTransform(undist_src, undist_dst)
+inverse_M = cv2.getPerspectiveTransform(undist_dst, undist_src)
 
 # Create lines.
 left_line = Line()
 right_line = Line()
 
-# Find the lane lines and populate Line members.
-find_lanes_sliding_window(img_filename, binary_warped, left_line, right_line)
+# Read image from file, and undistort.
+image = cv2.imread("test_images/%s.jpg" % img_filename)
+undist = undistort(image, cam_mtx, cam_dist)
+cv2.imwrite("output_images/%s_undistort.jpg" % img_filename, undist)
+# Get binary image of undistorted and unwarped lanes after threhsolding.
+binary_warped = binarize(img_filename, undist, cam_mtx, cam_dist)
+
+# Find the lane lines and populate Line member vars.
+left_fitx, right_fitx, ploty = find_lanes_sliding_window(img_filename, \
+    binary_warped, left_line, right_line)
+
+# Draw the lane back onto the original image.
+draw_lane(img_filename, undist, binary_warped, left_fitx, right_fitx, ploty)
 
