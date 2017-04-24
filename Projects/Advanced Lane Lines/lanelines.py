@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 n = 10
 # Image shape of all lane lines images.
 img_shape = (1280,720)
+# Whether to save images from cv pipeline
+SAVE_PIPELINE_IMAGES = True
 
 # Define a class to receive the characteristics of each line detection
 class Line():
@@ -22,7 +24,7 @@ class Line():
         self.recent_fits = []
         # polynomial coefficients averaged over the last n iterations
         self.best_fit = None
-        #radius of curvature of the line in some units
+        # radius of curvature of the line in some units
         self.radius_of_curvature = None
         # distance in meters of vehicle center from the line
         self.line_base_pos = None
@@ -66,9 +68,22 @@ class Line():
         self.add_fit_x_vals(fitx)
         self.add_fit(fit)
         self.radius_of_curvature = curverad
+        # TODO: calculate real distance from vehicle center (btw, vehicle center is not image center)
         self.line_base_pos = img_center_x - x[0]
         self.allx = x
         self.ally = y
+
+def plot_two(img1, img2, title1, title2, fontsize=50):
+    plt.clf()
+    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+    f.tight_layout()
+    img1_rgb = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
+    ax1.imshow(img1_rgb)
+    ax1.set_title(title1, fontsize=fontsize)
+    img2_rgb = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
+    ax2.imshow(img2_rgb)
+    ax2.set_title(title2, fontsize=fontsize)
+    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
 
 # Calibrate camera using same image shape for all images.
 def calibrate_camera(img_shape):
@@ -100,8 +115,8 @@ def calibrate_camera(img_shape):
             imgpoints.append(corners)
             objpoints.append(objp)
             # Draw and display corners
-            img = cv2.drawChessboardCorners(img, (nx,ny), corners, ret)
-            #cv2.imwrite("output_images/chessboard-corners-%d.jpg" % i, img)
+            # img = cv2.drawChessboardCorners(img, (nx,ny), corners, ret)
+            # cv2.imwrite("output_images/chessboard-corners-%d.jpg" % i, img)
 
     # Calibrate camera
     cam_ret, cam_mtx, cam_dist, cam_rvecs, cam_tvecs = cv2.calibrateCamera( \
@@ -192,32 +207,32 @@ def hls_thresh(img, channel='s', thresh=(170, 255)):
     return sbinary
 
 def binarize(img_filename, undist, cam_mtx, cam_dist):
-    global transform_M
+    global transform_M, SAVE_PIPELINE_IMAGES
 
     # Sobel kernel size
     ksize = 5
 
     # Apply each of the thresholding functions
     gradx_binary = abs_sobel_thresh(undist, orient='x', sobel_kernel=ksize, thresh=(20, 100))
-    cv2.imwrite("output_images/%s_sobelx.jpg" % img_filename, gradx_binary*255)
+    # cv2.imwrite("output_images/%s_sobelx.jpg" % img_filename, gradx_binary*255)
     grady_binary = abs_sobel_thresh(undist, orient='y', sobel_kernel=ksize, thresh=(20, 100))
-    cv2.imwrite("output_images/%s_sobely.jpg" % img_filename, grady_binary*255)
+    # cv2.imwrite("output_images/%s_sobely.jpg" % img_filename, grady_binary*255)
     mag_binary = mag_thresh(undist, sobel_kernel=ksize, thresh=(30, 100))
-    cv2.imwrite("output_images/%s_mag.jpg" % img_filename, mag_binary*255)
+    # cv2.imwrite("output_images/%s_mag.jpg" % img_filename, mag_binary*255)
     dir_binary = dir_thresh(undist, sobel_kernel=ksize, thresh=(0.8, 1.2))
     # Erode the direction results so that only big globs of nearby white pixels survive.
     erode_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5,5))
     dir_binary = cv2.erode(dir_binary, erode_kernel, iterations=1)
     dir_binary = cv2.dilate(dir_binary, erode_kernel, iterations=2)
-    cv2.imwrite("output_images/%s_dir.jpg" % img_filename, dir_binary*255)
+    # cv2.imwrite("output_images/%s_dir.jpg" % img_filename, dir_binary*255)
     hls_binary = hls_thresh(undist, channel='s', thresh=(170, 255))
-    cv2.imwrite("output_images/%s_hls.jpg" % img_filename, hls_binary*255)
+    # cv2.imwrite("output_images/%s_hls.jpg" % img_filename, hls_binary*255)
 
     # Combine thresholds
     combined = np.zeros_like(mag_binary)
     combined[((gradx_binary == 1) & (grady_binary == 1)) | \
             ((mag_binary == 1) & (dir_binary == 1)) | (hls_binary == 1)] = 1
-    cv2.imwrite("output_images/%s_thresh.jpg" % img_filename, combined*255)
+    # cv2.imwrite("output_images/%s_thresh.jpg" % img_filename, combined*255)
 
     # Mask: exclude pixels outside lanes window.
     mask_top_left = [590, 425]
@@ -234,13 +249,12 @@ def binarize(img_filename, undist, cam_mtx, cam_dist):
     cv2.drawContours(matrix, [poly] , -1, (1), thickness=-1)
     masked = np.zeros_like(combined)
     masked[(combined == 1) & (matrix == 1)] = 1
-    cv2.imwrite("output_images/%s_mask.jpg" % img_filename, masked*255)
+    if SAVE_PIPELINE_IMAGES:
+        cv2.imwrite("output_images/%s_combo_masked.jpg" % img_filename, masked*255)
 
     # Do perspective transform of masked thresholded image.
-    warped = perspective_transform(undist, transform_M)
-    cv2.imwrite("output_images/%s_persp.jpg" % img_filename, warped)
     binary_warped = perspective_transform(masked, transform_M)
-    cv2.imwrite("output_images/%s_persp_thresh.jpg" % img_filename, binary_warped*255)
+    # cv2.imwrite("output_images/%s_persp_thresh.jpg" % img_filename, binary_warped*255)
 
     return binary_warped
 
@@ -317,8 +331,8 @@ def find_lanes_sliding_window(img_filename, binary_warped, left_line, right_line
     left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
     right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
 
-    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+    out_img[lefty, leftx] = [255, 0, 0]
+    out_img[righty, rightx] = [0, 0, 255]
     plt.clf()
     plt.imshow(out_img)
     plt.plot(left_fitx, ploty, color='yellow')
@@ -326,16 +340,21 @@ def find_lanes_sliding_window(img_filename, binary_warped, left_line, right_line
     plt.xlim(0, 1280)
     plt.ylim(720, 0)
 
-    plt.savefig("output_images/%s_polylanes_vis.jpg" % img_filename)
+    if SAVE_PIPELINE_IMAGES:
+        plt.savefig("output_images/%s_polylanes_vis.jpg" % img_filename)
 
     # Get radius of curvature in meters.
     left_curverad, right_curverad = meter_curve_radius(left_fit, right_fit, ploty, left_fitx, right_fitx)
 
     # Update lines definitions.
+    print ('x')
+    print (leftx)
+    print ('y')
+    print (lefty)
     left_line.update(left_fit, left_fitx, left_curverad, leftx, lefty)
     right_line.update(right_fit, right_fitx, right_curverad, rightx, righty)
 
-    return left_fitx, right_fitx, ploty
+    return ploty
 
 def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     # Assume you now have a new warped binary image 
@@ -357,7 +376,7 @@ def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)
     # Generate x and y values for plotting
-    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
+    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0])
     left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
     right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
 
@@ -365,8 +384,8 @@ def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
     window_img = np.zeros_like(out_img)
     # Color in left and right line pixels
-    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+    out_img[lefty, leftx] = [255, 0, 0]
+    out_img[righty, rightx] = [0, 0, 255]
 
     # Visualize: Generate a polygon to illustrate the search window area
     # And recast the x and y points into usable format for cv2.fillPoly()
@@ -388,7 +407,8 @@ def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     plt.xlim(0, 1280)
     plt.ylim(720, 0)
 
-    plt.savefig("output_images/%s_polylanes_vis_lim.jpg" % img_filename)
+    if SAVE_PIPELINE_IMAGES:
+        plt.savefig("output_images/%s_polylanes_vis_lim.jpg" % img_filename)
 
     # Get radius of curvature in meters.
     left_curverad, right_curverad = meter_curve_radius(left_fit, right_fit, ploty, left_fitx, right_fitx)
@@ -397,7 +417,7 @@ def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     left_line.update(left_fit, left_fitx, left_curverad, leftx, lefty)
     right_line.update(right_fit, right_fitx, right_curverad, rightx, righty)
 
-    return left_fitx, right_fitx, ploty
+    return ploty
 
 def pixel_curve_radius(left_fit, right_fit, ploty):
     # Define y-value where we want radius of curvature
@@ -422,33 +442,53 @@ def meter_curve_radius(left_fit, right_fit, ploty, leftx, rightx):
     # Now our radius of curvature is in meters
     return left_curverad, right_curverad
 
-def draw_lane(img_filename, undist, binary_warped, left_fitx, right_fitx, ploty):
+def draw_lane(img_filename, undist, binary_warped, left_line, right_line, ploty):
     global inverse_M
 
     # Create an image to draw the lines on
     warp_zero = np.zeros_like(binary_warped).astype(np.uint8)
-    color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+    color_lane_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+    color_lines_warp = color_lane_warp.copy()
 
     # Recast the x and y points into usable format for cv2.fillPoly()
-    pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
-    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+    pts_left = np.array([np.transpose(np.vstack([left_line.bestx, ploty]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_line.bestx, ploty])))])
     pts = np.hstack((pts_left, pts_right))
 
     # Draw the lane onto the warped blank image
-    cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
+    cv2.fillPoly(color_lane_warp, np.int_([pts]), (0, 255, 0))
+    
+    # Color in left and right line pixels
+    color_lines_warp[left_line.ally, left_line.allx] = [255, 0, 0]
+    color_lines_warp[right_line.ally, right_line.allx] = [0, 0, 255]
 
     # Warp the blank back to original image space using inverse perspective matrix
-    newwarp = perspective_transform(color_warp, inverse_M)
+    lane_unwarp = perspective_transform(color_lane_warp, inverse_M)
+    lines_unwarp = perspective_transform(color_lines_warp, inverse_M)
+    binary_lines = lines_unwarp.copy()
+    nonzero = np.nonzero(binary_lines.any(axis=-1))
+    binary_lines[nonzero] = [255, 255, 255]
     # Combine the result with the original image
-    result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
+    lane = cv2.addWeighted(undist, 1, lane_unwarp, 0.3, 0)
+    dampened = cv2.addWeighted(lane, 1, binary_lines, -0.9, 0)
+    result = cv2.addWeighted(dampened, 1, lines_unwarp, 0.5, 0)
+
     cv2.imwrite("output_images/%s_lane_drawn.jpg" % img_filename, result)
 
-img_filename = "test1"
+    return result
+
+img_filename = "straight_lines1"
 
 # Get camera matrix and distortion coefficients.
 cam_mtx, cam_dist = calibrate_camera(img_shape)
 
-# Predefine src and dst points (after distortion) for 
+if SAVE_PIPELINE_IMAGES:
+    image = cv2.imread("camera_cal/calibration1.jpg")
+    undist = undistort(image, cam_mtx, cam_dist)
+    plot_two(image, undist, "Original image", "Undistorted image")
+    plt.savefig("output_images/undistort_chessboard.jpg")
+
+# Predefine src and dst points (after undistortion) for 
 # perspective transform of each lane lines image.
 top_left = [632, 425]
 top_right = [648, 425]
@@ -473,14 +513,27 @@ right_line = Line()
 # Read image from file, and undistort.
 image = cv2.imread("test_images/%s.jpg" % img_filename)
 undist = undistort(image, cam_mtx, cam_dist)
-cv2.imwrite("output_images/%s_undistort.jpg" % img_filename, undist)
+
+if SAVE_PIPELINE_IMAGES:
+    undist_copy = undist.copy()
+    src_pts = undist_src.astype(np.int32).reshape((-1,1,2))
+    cv2.polylines(undist_copy, [src_pts], True, (255,0,0), 5)
+    warped = perspective_transform(undist, transform_M)
+    dst_pts = undist_dst.astype(np.int32).reshape((-1,1,2))
+    cv2.polylines(warped, [dst_pts], True, (255,0,0), 5)
+    plot_two(undist_copy, warped, \
+        "Undistorted image with src points drawn", \
+        "Warped result with dest. points drawn", 30)
+    plt.savefig("output_images/%s_warped.jpg" % img_filename)
+    cv2.imwrite("output_images/%s_undist.jpg" % img_filename, undist)
+
 # Get binary image of undistorted and unwarped lanes after threhsolding.
 binary_warped = binarize(img_filename, undist, cam_mtx, cam_dist)
 
 # Find the lane lines and populate Line member vars.
-left_fitx, right_fitx, ploty = find_lanes_sliding_window(img_filename, \
+ploty = find_lanes_sliding_window(img_filename, \
     binary_warped, left_line, right_line)
 
 # Draw the lane back onto the original image.
-draw_lane(img_filename, undist, binary_warped, left_fitx, right_fitx, ploty)
+draw_lane(img_filename, undist, binary_warped, left_line, right_line, ploty)
 
