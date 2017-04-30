@@ -3,13 +3,17 @@ import cv2
 import glob
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+from moviepy.editor import VideoFileClip
 
 # Number of past iterations to store in a Line.
 n = 10
 # Image shape of all lane lines images.
 img_shape = (1280,720)
 # Whether to save images from cv pipeline
-SAVE_PIPELINE_IMAGES = True
+TEST_PIPELINE = False
+# Define conversions in x and y from pixels space to meters
+ym_per_pix = 30/720 # meters per pixel in y dimension
+xm_per_pix = 3.7/700 # meters per pixel in x dimension
 
 # Define a class to receive the characteristics of each line detection
 class Line():
@@ -61,15 +65,14 @@ class Line():
         if len(self.recent_fits) > 1:
             self.diffs = self.recent_fits[0] - self.recent_fits[1]
 
-    def update(self, fit, fitx, curverad, x, y):
-        global img_shape
-        img_center_x = img_shape[0]/2.
+    def update(self, fit, fitx, curverad, vcenter, x, y):
+        global img_shape, xm_per_pix
+        h = img_shape[1]
         self.detected = True
         self.add_fit_x_vals(fitx)
         self.add_fit(fit)
         self.radius_of_curvature = curverad
-        # TODO: calculate real distance from vehicle center (btw, vehicle center is not image center)
-        self.line_base_pos = img_center_x - x[0]
+        self.line_base_pos = (vcenter - fitx[h-1])*xm_per_pix
         self.allx = x
         self.ally = y
 
@@ -207,7 +210,7 @@ def hls_thresh(img, channel='s', thresh=(170, 255)):
     return sbinary
 
 def binarize(img_filename, undist, cam_mtx, cam_dist):
-    global transform_M, SAVE_PIPELINE_IMAGES
+    global transform_M, TEST_PIPELINE
 
     # Sobel kernel size
     ksize = 5
@@ -249,7 +252,7 @@ def binarize(img_filename, undist, cam_mtx, cam_dist):
     cv2.drawContours(matrix, [poly] , -1, (1), thickness=-1)
     masked = np.zeros_like(combined)
     masked[(combined == 1) & (matrix == 1)] = 1
-    if SAVE_PIPELINE_IMAGES:
+    if TEST_PIPELINE:
         cv2.imwrite("output_images/%s_combo_masked.jpg" % img_filename, masked*255)
 
     # Do perspective transform of masked thresholded image.
@@ -259,6 +262,7 @@ def binarize(img_filename, undist, cam_mtx, cam_dist):
     return binary_warped
 
 def find_lanes_sliding_window(img_filename, binary_warped, left_line, right_line):
+    global img_shape, xm_per_pix
     # Take a histogram of the bottom half of the image
     histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
     # Create an output image to draw on and visualize the result
@@ -327,7 +331,7 @@ def find_lanes_sliding_window(img_filename, binary_warped, left_line, right_line
     right_fit = np.polyfit(righty, rightx, 2)
 
     # Visualize: Generate x and y values for plotting
-    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
+    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0])
     left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
     right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
 
@@ -340,43 +344,58 @@ def find_lanes_sliding_window(img_filename, binary_warped, left_line, right_line
     plt.xlim(0, 1280)
     plt.ylim(720, 0)
 
-    if SAVE_PIPELINE_IMAGES:
+    if TEST_PIPELINE:
         plt.savefig("output_images/%s_polylanes_vis.jpg" % img_filename)
+
+    # Calculate the vehicle center.
+    y_eval = np.max(ploty)
+    vehicle_center = (left_fitx[y_eval] + right_fitx[y_eval]) / 2
+    img_center = (img_shape[0]/2.)
+    # print ("Img center: %.2f, Vehicle center: %.2f" % (img_center, vehicle_center))
+    vehicle_center_offset_m = (vehicle_center - img_center)*xm_per_pix
 
     # Get radius of curvature in meters.
     left_curverad, right_curverad = meter_curve_radius(left_fit, right_fit, ploty, left_fitx, right_fitx)
 
     # Update lines definitions.
-    print ('x')
-    print (leftx)
-    print ('y')
-    print (lefty)
-    left_line.update(left_fit, left_fitx, left_curverad, leftx, lefty)
-    right_line.update(right_fit, right_fitx, right_curverad, rightx, righty)
+    left_line.update(left_fit, left_fitx, left_curverad, vehicle_center, leftx, lefty)
+    right_line.update(right_fit, right_fitx, right_curverad, vehicle_center, rightx, righty)
 
-    return ploty
+    return ploty, vehicle_center_offset_m
 
-def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
-    # Assume you now have a new warped binary image 
-    # from the next frame of video (also called "binary_warped")
+def find_lanes_limited_search(img_filename, binary_warped, left_line, right_line):
+    global img_shape, xm_per_pix
+    # We now have a new warped binary image 
+    # from the next frame of video.
     # It's now much easier to find line pixels!
     nonzero = binary_warped.nonzero()
     nonzeroy = np.array(nonzero[0])
     nonzerox = np.array(nonzero[1])
     margin = 100
-    left_lane_inds = ((nonzerox > (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] - margin)) & (nonzerox < (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] + margin))) 
-    right_lane_inds = ((nonzerox > (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] - margin)) & (nonzerox < (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] + margin)))  
+    left_fit = left_line.best_fit
+    right_fit = right_line.best_fit
+    left_lane_inds = ((nonzerox > (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] - margin)) & (nonzerox < (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] + margin)))
+    right_lane_inds = ((nonzerox > (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] - margin)) & (nonzerox < (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] + margin)))
 
     # Again, extract left and right line pixel positions
     leftx = nonzerox[left_lane_inds]
-    lefty = nonzeroy[left_lane_inds] 
+    lefty = nonzeroy[left_lane_inds]
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
-    # Fit a second order polynomial to each
+
+    # Generate y values for plotting
+    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0])
+
+    # Return if there has been an error.
+    if lefty.size == 0 or leftx.size == 0 or righty.size == 0 or rightx.size == 0:
+        print ("Error: Did not detect a lane in this frame.")
+        return ploty, 0
+
+    # Fit a second order polynomial to each line.
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)
-    # Generate x and y values for plotting
-    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0])
+
+    # Generate x values for plotting
     left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
     right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
 
@@ -407,17 +426,45 @@ def find_lanes_limited_search(img_filename, binary_warped, left_fit, right_fit):
     plt.xlim(0, 1280)
     plt.ylim(720, 0)
 
-    if SAVE_PIPELINE_IMAGES:
+    if TEST_PIPELINE:
         plt.savefig("output_images/%s_polylanes_vis_lim.jpg" % img_filename)
+
+    # Calculate the vehicle center.
+    y_eval = np.max(ploty)
+    vehicle_center = (left_fitx[y_eval] + right_fitx[y_eval]) / 2
+    img_center = (img_shape[0]/2.)
+    # print ("Img center: %.2f, Vehicle center: %.2f" % (img_center, vehicle_center))
+    vehicle_center_offset_m = (vehicle_center - img_center)*xm_per_pix
 
     # Get radius of curvature in meters.
     left_curverad, right_curverad = meter_curve_radius(left_fit, right_fit, ploty, left_fitx, right_fitx)
 
-    # Update lines definitions.
-    left_line.update(left_fit, left_fitx, left_curverad, leftx, lefty)
-    right_line.update(right_fit, right_fitx, right_curverad, rightx, righty)
+    if sanity_check(left_fitx, right_fitx, left_curverad, right_curverad):
+        # Update lines definitions.
+        left_line.update(left_fit, left_fitx, left_curverad, vehicle_center, leftx, lefty)
+        right_line.update(right_fit, right_fitx, right_curverad, vehicle_center, rightx, righty)
+    else:
+        left_line.detected = False
+        right_line.detected = False
 
-    return ploty
+    return ploty, vehicle_center_offset_m
+
+def sanity_check(left_fitx, right_fitx, left_curverad, right_curverad):
+    global img_shape, xm_per_pix, xp
+    y_eval = img_shape[1] - 1
+    # Make sure lane width is reasonably close to expected lane width.
+    lane_width = (right_fitx[y_eval] - left_fitx[y_eval])
+    expected_width = img_shape[0]-(xp*2)
+    width_diff = abs(1. - (lane_width / expected_width))
+    # print ("Width difference: %.2f" % width_diff)
+    if width_diff > 0.1:
+        return False
+    # Make sure curve radius is similar for both lines.
+    curverad_diff = abs(1. - (left_curverad / right_curverad))
+    # print ("Curve radius difference: %.2f" % curverad_diff)
+    if curverad_diff > 1:
+        return False
+    return True
 
 def pixel_curve_radius(left_fit, right_fit, ploty):
     # Define y-value where we want radius of curvature
@@ -428,11 +475,9 @@ def pixel_curve_radius(left_fit, right_fit, ploty):
     return left_curverad, right_curverad
 
 def meter_curve_radius(left_fit, right_fit, ploty, leftx, rightx):
+    global ym_per_pix, xm_per_pix
     # Define y-value where we want radius of curvature
-    y_eval = np.max(ploty)
-    # Define conversions in x and y from pixels space to meters
-    ym_per_pix = 30/720 # meters per pixel in y dimension
-    xm_per_pix = 3.7/700 # meters per pixel in x dimension
+    y_eval = np.max(ploty) # bottom of image
     # Fit new polynomials to x,y in world space
     left_fit_cr = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
     right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
@@ -442,7 +487,7 @@ def meter_curve_radius(left_fit, right_fit, ploty, leftx, rightx):
     # Now our radius of curvature is in meters
     return left_curverad, right_curverad
 
-def draw_lane(img_filename, undist, binary_warped, left_line, right_line, ploty):
+def draw_lane(img_filename, undist, binary_warped, left_line, right_line, vcenteroffset, ploty):
     global inverse_M
 
     # Create an image to draw the lines on
@@ -473,16 +518,28 @@ def draw_lane(img_filename, undist, binary_warped, left_line, right_line, ploty)
     dampened = cv2.addWeighted(lane, 1, binary_lines, -0.9, 0)
     result = cv2.addWeighted(dampened, 1, lines_unwarp, 0.5, 0)
 
-    cv2.imwrite("output_images/%s_lane_drawn.jpg" % img_filename, result)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    avg_curvature = (left_line.radius_of_curvature + right_line.radius_of_curvature)/2.
+    rad_text = "Radius of curvature: %.2f m" % avg_curvature
+    cv2.putText(result, rad_text, (10,40), font, 1, (255,255,255), 2, cv2.LINE_AA)
+    offset_text = "Vehicle is %.2f m %s of center" % \
+        (abs(vcenteroffset), "right" if vcenteroffset >= 0 else "left")
+    cv2.putText(result, offset_text, (10,80), font, 1, (255,255,255), 2, cv2.LINE_AA)
+
+    if TEST_PIPELINE:
+        cv2.imwrite("output_images/%s_output.jpg" % img_filename, result)
 
     return result
 
-img_filename = "straight_lines1"
+if TEST_PIPELINE:
+    img_filename = "straight_lines2"
+else:
+    img_filename = ""
 
 # Get camera matrix and distortion coefficients.
 cam_mtx, cam_dist = calibrate_camera(img_shape)
 
-if SAVE_PIPELINE_IMAGES:
+if TEST_PIPELINE:
     image = cv2.imread("camera_cal/calibration1.jpg")
     undist = undistort(image, cam_mtx, cam_dist)
     plot_two(image, undist, "Original image", "Undistorted image")
@@ -510,30 +567,58 @@ inverse_M = cv2.getPerspectiveTransform(undist_dst, undist_src)
 left_line = Line()
 right_line = Line()
 
+def pipeline(image):
+    global cam_mtx, cam_dist, left_line, right_line, transform_M, img_filename
+    global undist_src, undist_dst
+
+    if not TEST_PIPELINE:
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) # convert to BGR
+
+    undist = undistort(image, cam_mtx, cam_dist)
+
+    if TEST_PIPELINE:
+        undist_copy = undist.copy()
+        src_pts = undist_src.astype(np.int32).reshape((-1,1,2))
+        cv2.polylines(undist_copy, [src_pts], True, (255,0,0), 5)
+        warped = perspective_transform(undist, transform_M)
+        dst_pts = undist_dst.astype(np.int32).reshape((-1,1,2))
+        cv2.polylines(warped, [dst_pts], True, (255,0,0), 5)
+        plot_two(undist_copy, warped, \
+            "Undistorted image with src points drawn", \
+            "Warped result with dest. points drawn", 30)
+        plt.savefig("output_images/%s_warped.jpg" % img_filename)
+        cv2.imwrite("output_images/%s_undist.jpg" % img_filename, undist)
+
+    # Get binary image of undistorted and unwarped lanes after thresholding.
+    binary_warped = binarize(img_filename, undist, cam_mtx, cam_dist)
+
+    # Find the lane lines and populate Line member vars.
+    if not left_line.detected:
+        ploty, vcenteroffset = find_lanes_sliding_window(img_filename, \
+            binary_warped, left_line, right_line)
+    else:
+        ploty, vcenteroffset = find_lanes_limited_search(img_filename, \
+            binary_warped, left_line, right_line)
+        # Re-search if it failed to detect lines.
+        if not left_line.detected:
+            print ("Sanity check failed! Executing full sliding window search.")
+            ploty, vcenteroffset = find_lanes_sliding_window(img_filename, \
+                binary_warped, left_line, right_line)
+
+    # Draw the lane back onto the original image.
+    result = draw_lane(img_filename, undist, binary_warped, left_line, right_line, vcenteroffset, ploty)
+
+    if not TEST_PIPELINE:
+        result = cv2.cvtColor(result, cv2.COLOR_BGR2RGB) # convert back to RGB
+
+    return result
+
 # Read image from file, and undistort.
-image = cv2.imread("test_images/%s.jpg" % img_filename)
-undist = undistort(image, cam_mtx, cam_dist)
-
-if SAVE_PIPELINE_IMAGES:
-    undist_copy = undist.copy()
-    src_pts = undist_src.astype(np.int32).reshape((-1,1,2))
-    cv2.polylines(undist_copy, [src_pts], True, (255,0,0), 5)
-    warped = perspective_transform(undist, transform_M)
-    dst_pts = undist_dst.astype(np.int32).reshape((-1,1,2))
-    cv2.polylines(warped, [dst_pts], True, (255,0,0), 5)
-    plot_two(undist_copy, warped, \
-        "Undistorted image with src points drawn", \
-        "Warped result with dest. points drawn", 30)
-    plt.savefig("output_images/%s_warped.jpg" % img_filename)
-    cv2.imwrite("output_images/%s_undist.jpg" % img_filename, undist)
-
-# Get binary image of undistorted and unwarped lanes after threhsolding.
-binary_warped = binarize(img_filename, undist, cam_mtx, cam_dist)
-
-# Find the lane lines and populate Line member vars.
-ploty = find_lanes_sliding_window(img_filename, \
-    binary_warped, left_line, right_line)
-
-# Draw the lane back onto the original image.
-draw_lane(img_filename, undist, binary_warped, left_line, right_line, ploty)
-
+if TEST_PIPELINE:
+    image = cv2.imread("test_images/%s.jpg" % img_filename)
+    pipeline(image)
+else:
+    soln_output = 'project_solution.mp4'
+    clip1 = VideoFileClip("project_video.mp4")
+    soln_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
+    soln_clip.write_videofile(soln_output, audio=False)
