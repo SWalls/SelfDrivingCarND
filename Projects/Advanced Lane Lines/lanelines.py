@@ -10,7 +10,7 @@ n = 10
 # Image shape of all lane lines images.
 img_shape = (1280,720)
 # Whether to save images from cv pipeline
-TEST_PIPELINE = False
+TEST_PIPELINE = True
 # Define conversions in x and y from pixels space to meters
 ym_per_pix = 30/720 # meters per pixel in y dimension
 xm_per_pix = 3.7/700 # meters per pixel in x dimension
@@ -240,7 +240,7 @@ def binarize(img_filename, undist, cam_mtx, cam_dist):
     # Mask: exclude pixels outside lanes window.
     mask_top_left = [590, 425]
     mask_top_right = [690, 425]
-    mask_bottom_right = [1080, 710]
+    mask_bottom_right = [1200, 710]
     mask_bottom_left = [210, 710]
     mask = np.float32([mask_top_left,mask_top_right,mask_bottom_right,mask_bottom_left])
     points = []
@@ -532,7 +532,7 @@ def draw_lane(img_filename, undist, binary_warped, left_line, right_line, vcente
     return result
 
 if TEST_PIPELINE:
-    img_filename = "straight_lines2"
+    img_filename = "test1"
 else:
     img_filename = ""
 
@@ -601,9 +601,9 @@ def pipeline(image):
             binary_warped, left_line, right_line)
         # Re-search if it failed to detect lines.
         if not left_line.detected:
-            print ("Sanity check failed! Executing full sliding window search.")
-            ploty, vcenteroffset = find_lanes_sliding_window(img_filename, \
-                binary_warped, left_line, right_line)
+            print ("Sanity check failed!")
+            # ploty, vcenteroffset = find_lanes_sliding_window(img_filename, \
+            #    binary_warped, left_line, right_line)
 
     # Draw the lane back onto the original image.
     result = draw_lane(img_filename, undist, binary_warped, left_line, right_line, vcenteroffset, ploty)
