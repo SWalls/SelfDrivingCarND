@@ -445,7 +445,7 @@ TEST_PIPELINE = False
 if TEST_PIPELINE:
     heat_threshold = 1
 else:
-    heat_threshold = 8
+    heat_threshold = 10
 heat_age = 10 # duration (in frames) of heat to consider
 heat = np.zeros((heat_age,img_height,img_width)).astype(np.float)
 current_heat = 0
