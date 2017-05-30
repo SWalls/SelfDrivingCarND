@@ -370,7 +370,7 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient,
                 xbox_left = np.int(xleft*scale)
                 ytop_draw = np.int(ytop*scale)
                 win_draw = np.int(window*scale)
-                bbox = [(xbox_left, ytop_draw+ystart), (xbox_left+win_draw, ytop_draw+win_draw+ystart)]
+                bbox = ((xbox_left, ytop_draw+ystart), (xbox_left+win_draw, ytop_draw+win_draw+ystart))
                 bboxes.append(bbox)
     
     return bboxes
@@ -437,19 +437,26 @@ X_scaler = dict["scaler"]
 ystart = 400
 ystop = 656
 # scale = 2
+img_width = 1280
+img_height = 720
 
+TEST_PIPELINE = False
+
+if TEST_PIPELINE:
+    heat_threshold = 1
+else:
+    heat_threshold = 8
 heat_age = 10 # duration (in frames) of heat to consider
-heat = np.zeros((heat_age,600,800)).astype(np.float)
+heat = np.zeros((heat_age,img_height,img_width)).astype(np.float)
 current_heat = 0
 
 def pipeline(img):
-    global heat_age, heat, current_heat
+    global heat_age, heat, current_heat, heat_threshold
     global ystart, ystop, svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins
     # Find cars in image.
     bbox_list = []
-    for scale in [1.0, 2.0, 4.0]:
+    for scale in [1.0, 1.5, 2.0]:
         bbox_list.extend(find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins))
-    print(len(bbox_list))
     # Add heat to heatmap.
     if current_heat < heat_age:
         heat[current_heat] = add_heat(heat[current_heat], bbox_list)
@@ -457,29 +464,36 @@ def pipeline(img):
     else:
         for i in range(1, heat_age):
             heat[i-1] = heat[i]
-        heat[heat_age-1] = add_heat(np.zeros_like(heat[heat_age-1]), bbox_list)
+        heat[heat_age-1] = add_heat(np.zeros_like(heat[0]), bbox_list)
     combined_heat = np.sum(heat, axis=0)
     # Apply threshold to help remove false positives
-    combined_heat = apply_threshold(combined_heat, 0)
+    combined_heat = apply_threshold(combined_heat, heat_threshold)
     # Visualize the heatmap when displaying
     heatmap = np.clip(combined_heat, 0, 255)
     # Find final boxes from heatmap using label function
     labels = label(heatmap)
-    draw_img = draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6)
-    return draw_img
+    draw_label_img = draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6)
+    draw_boxes_img = draw_bboxes(img, bbox_list, color=(0, 0, 255), thick=6)
+    if TEST_PIPELINE:
+        return draw_label_img, draw_boxes_img, heatmap
+    else:
+        return draw_label_img
 
-for i in range(1, 7):
-    heat = np.zeros((heat_age,600,800)).astype(np.float)
-    current_heat = 0
-    img = mpimg.imread('test_images/test%d.jpg' % i)
-    draw_img = pipeline(img)
-    plt.imshow(draw_img)
-    plt.savefig('test_images/test%d-out.png' % i)
-"""
-
-# Run pipeline over video.
-soln_output = 'project_solution.mp4'
-clip1 = VideoFileClip("project_video.mp4")
-soln_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
-soln_clip.write_videofile(soln_output, audio=False)
-"""
+if TEST_PIPELINE:
+    for i in range(1, 7):
+        heat = np.zeros((heat_age,img_height,img_width)).astype(np.float)
+        current_heat = 0
+        img = mpimg.imread('test_images/test%d.jpg' % i)
+        draw_label_img, draw_boxes_img, heatmap = pipeline(img)
+        plt.imshow(heatmap, cmap='hot')
+        plt.savefig('test_images/test%d-heatmap.png' % i)
+        plt.imshow(draw_boxes_img)
+        plt.savefig('test_images/test%d-bboxes.png' % i)
+        plt.imshow(draw_label_img)
+        plt.savefig('test_images/test%d-out.png' % i)
+else:
+    # Run pipeline over video.
+    soln_output = 'project_solution.mp4'
+    clip1 = VideoFileClip("project_video.mp4")
+    soln_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
+    soln_clip.write_videofile(soln_output, audio=False)
