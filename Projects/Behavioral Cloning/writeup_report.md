@@ -1,5 +1,5 @@
-#Behavioral Cloning
-##by Soeren Walls
+# Behavioral Cloning
+## by Soeren Walls
 
 **Behavioral Cloning Project**
 
@@ -24,7 +24,7 @@ The goals / steps of this project are the following:
 Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.  
 
 ---
-###Files Submitted & Code Quality
+### Files Submitted & Code Quality
 
 1\. **Submission includes all required files and can be used to run the simulator in autonomous mode.**
 
@@ -45,7 +45,7 @@ python drive.py model.h5
 
 The model.py file contains the code for training and saving the convolution neural network. The file shows the pipeline I used for training and validating the model, and it contains comments to explain how the code works.
 
-###Model Architecture and Training Strategy
+### Model Architecture and Training Strategy
 
 1\. **An appropriate model arcthiecture has been employed**
 
@@ -71,7 +71,7 @@ In all of my data, I only included images from the center camera, since this was
 
 For details about how I created the training data, see the next section.
 
-###Model Architecture and Training Strategy
+### Model Architecture and Training Strategy
 
 1\. **Solution Design Approach**
 
@@ -125,7 +125,7 @@ To capture good driving behavior, I first recorded two laps on track one using c
 
 ![alt text][image1]
 
-I then recorded the vehicle recovering from the left side and right sides of the road back to center so that the vehicle would learn to correct itself if it got off track. These images show what a recovery looks like starting from ... :
+I then recorded the vehicle recovering from the left side and right sides of the road back to center so that the vehicle would learn to correct itself if it got off track. These images show what a recovery looks like starting from the right side of the track:
 
 ![alt text][image2]
 ![alt text][image3]
