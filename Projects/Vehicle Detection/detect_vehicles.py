@@ -308,12 +308,12 @@ def train_model(color_space, spatial_size, hist_bins, orient, pix_per_cell, cell
     return dist_pickle
 
 # Define a single function that can extract features using hog sub-sampling and make predictions
-def find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, 
+def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, color_space, orient, 
         pix_per_cell, cell_per_block, spatial_size, hist_bins):
     
     img_norm = img.astype(np.float32)/255
     
-    img_tosearch = img_norm[ystart:ystop,:,:]
+    img_tosearch = img_norm[ystart:ystop,xstart:xstop,:]
     ctrans_tosearch = convert_color(img_tosearch, color_space)
     if scale != 1:
         imshape = ctrans_tosearch.shape
@@ -370,7 +370,7 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient,
                 xbox_left = np.int(xleft*scale)
                 ytop_draw = np.int(ytop*scale)
                 win_draw = np.int(window*scale)
-                bbox = ((xbox_left, ytop_draw+ystart), (xbox_left+win_draw, ytop_draw+win_draw+ystart))
+                bbox = ((xbox_left+xstart, ytop_draw+ystart), (xbox_left+win_draw+xstart, ytop_draw+win_draw+ystart))
                 bboxes.append(bbox)
     
     return bboxes
@@ -413,6 +413,13 @@ def draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6):
         nonzerox = np.array(nonzero[1])
         # Define a bounding box based on min/max x and y
         bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+        # Do sanity check on bounding box.
+        # Make sure aspect ratio makes sense.
+        bb_width = bbox[1][0]-bbox[0][0]
+        bb_height = bbox[1][1]-bbox[0][1]
+        bb_aspect_ratio = bb_width/bb_height
+        if bb_aspect_ratio > 2 or bb_aspect_ratio < 0.5:
+            continue
         # Draw the box on the image
         cv2.rectangle(imcopy, bbox[0], bbox[1], color, thick)
     # Return the image
@@ -443,7 +450,7 @@ TEST_PIPELINE = True
 if TEST_PIPELINE:
     heat_threshold = 0
 else:
-    heat_threshold = 5
+    heat_threshold = 7
 heat_age = 10 # duration (in frames) of heat to consider
 heat = np.zeros((heat_age,img_height,img_width)).astype(np.float)
 current_heat = 0
@@ -453,8 +460,9 @@ def pipeline(img):
     global svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins
     # Find cars in image.
     bbox_list = []
-    for scale, ystart, ystop in [[1.0, 400, 656]]:
-        bbox_list.extend(find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins))
+    for scale, ystart, ystop, xstart, xstop in [[0.8, 400, 445, 430, 930], [1.3, 400, 656, 0, img_width]]:
+        bbox_list.extend(find_cars(img, ystart, ystop, xstart, xstop, scale, svc, 
+            X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins))
     # Add heat to heatmap.
     if current_heat < heat_age:
         heat[current_heat] = add_heat(heat[current_heat], bbox_list)
@@ -484,11 +492,11 @@ if TEST_PIPELINE:
         img = mpimg.imread('test_images/test%d.jpg' % i)
         draw_label_img, draw_boxes_img, heatmap = pipeline(img)
         plt.imshow(heatmap, cmap='hot')
-        plt.savefig('test_images/test%d-heatmap.png' % i)
+        plt.savefig('output_images/test%d-heatmap.png' % i)
         plt.imshow(draw_boxes_img)
-        plt.savefig('test_images/test%d-bboxes.png' % i)
+        plt.savefig('output_images/test%d-bboxes.png' % i)
         plt.imshow(draw_label_img)
-        plt.savefig('test_images/test%d-out.png' % i)
+        plt.savefig('output_images/test%d-out.png' % i)
 else:
     # Run pipeline over video.
     soln_output = 'project_solution.mp4'
