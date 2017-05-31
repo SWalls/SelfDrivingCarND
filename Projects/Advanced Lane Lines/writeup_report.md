@@ -54,7 +54,11 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 
 To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
 
+*(Compare the bottoms of these 2 images to see how distortion correction changes the image)*
+
+**Unaltered input:**
 ![alt text][image1]
+**Distortion correction**:
 ![alt text][image2]
 
 I begin by collecting the camera matrix and the distortion coefficients from the `calibrate_camera` function described in the previous step (code line 540). Later, in the pipeline on line 577, I pass these as parameters in a call to the `undistort` function described in lines 130-134, which uses the `cv2.undistort()` function. Since the camera matrix and distortion coefficients are stored in global variables, I can use them at any time to undistort an image.
