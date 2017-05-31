@@ -445,12 +445,12 @@ X_scaler = dict["scaler"]
 img_width = 1280
 img_height = 720
 
-TEST_PIPELINE = True
+TEST_PIPELINE = False
 
 if TEST_PIPELINE:
     heat_threshold = 0
 else:
-    heat_threshold = 7
+    heat_threshold = 5
 heat_age = 10 # duration (in frames) of heat to consider
 heat = np.zeros((heat_age,img_height,img_width)).astype(np.float)
 current_heat = 0
@@ -460,7 +460,7 @@ def pipeline(img):
     global svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins
     # Find cars in image.
     bbox_list = []
-    for scale, ystart, ystop, xstart, xstop in [[0.8, 400, 445, 430, 930], [1.3, 400, 656, 0, img_width]]:
+    for scale, ystart, ystop, xstart, xstop in [[0.8, 400, 445, 430, 930], [1.0, 400, 656, 0, img_width]]:
         bbox_list.extend(find_cars(img, ystart, ystop, xstart, xstop, scale, svc, 
             X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins))
     # Add heat to heatmap.
