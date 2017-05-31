@@ -28,14 +28,14 @@ def load_samples(data_dir):
                 copy.append("flip")
                 samples.append(copy)
 
-load_samples('data')
-load_samples('newdata')
-# load_samples('reversedata')
-# load_samples('recoverydata3')
-# load_samples('recoverydata4')
-# load_samples('recoverydata5')
-# load_samples('recoverydata6')
-# load_samples('track2data')
+load_samples('data') # center lane driving in track one (provided)
+load_samples('newdata') # more center lane driving in track one
+# load_samples('reversedata') # driving in reverse around track one
+# load_samples('recoverydata3') # recovering from left and right side of track one
+# load_samples('recoverydata4') # recovering from left and right side of track one
+# load_samples('recoverydata5') # recovering from left and right side of track one
+# load_samples('recoverydata6') # recovering from left and right side of track one
+# load_samples('track2data') # center lane driving in track two
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
