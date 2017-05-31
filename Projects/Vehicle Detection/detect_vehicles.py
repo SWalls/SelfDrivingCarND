@@ -99,7 +99,7 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
                     hog_features.append(get_hog_features(feature_image[:,:,channel], 
                                         orient, pix_per_cell, cell_per_block, 
                                         vis=False, feature_vec=True))
-                hog_features = np.ravel(hog_features)        
+                hog_features = np.ravel(hog_features)
             else:
                 hog_features = get_hog_features(feature_image[:,:,hog_channel], orient, 
                             pix_per_cell, cell_per_block, vis=False, feature_vec=True)
@@ -420,7 +420,7 @@ def draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6):
 
 color_space = 'HSV' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
 spatial_size = (32, 32)
-hist_bins = 32
+hist_bins = 16
 orient = 9
 pix_per_cell = 8
 cell_per_block = 2
@@ -434,28 +434,26 @@ else:
 
 svc = dict["svc"]
 X_scaler = dict["scaler"]
-ystart = 400
-ystop = 656
-# scale = 2
+
 img_width = 1280
 img_height = 720
 
-TEST_PIPELINE = False
+TEST_PIPELINE = True
 
 if TEST_PIPELINE:
-    heat_threshold = 1
+    heat_threshold = 0
 else:
-    heat_threshold = 10
+    heat_threshold = 5
 heat_age = 10 # duration (in frames) of heat to consider
 heat = np.zeros((heat_age,img_height,img_width)).astype(np.float)
 current_heat = 0
 
 def pipeline(img):
     global heat_age, heat, current_heat, heat_threshold
-    global ystart, ystop, svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins
+    global svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins
     # Find cars in image.
     bbox_list = []
-    for scale in [1.0, 1.5, 2.0]:
+    for scale, ystart, ystop in [[1.0, 400, 656]]:
         bbox_list.extend(find_cars(img, ystart, ystop, scale, svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins))
     # Add heat to heatmap.
     if current_heat < heat_age:
@@ -473,8 +471,8 @@ def pipeline(img):
     # Find final boxes from heatmap using label function
     labels = label(heatmap)
     draw_label_img = draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6)
-    draw_boxes_img = draw_bboxes(img, bbox_list, color=(0, 0, 255), thick=6)
     if TEST_PIPELINE:
+        draw_boxes_img = draw_bboxes(img, bbox_list, color=(0, 0, 255), thick=6)
         return draw_label_img, draw_boxes_img, heatmap
     else:
         return draw_label_img
