@@ -6,11 +6,12 @@ import glob
 import time
 import os.path
 from random import randint
+from collections import deque
 from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
 from skimage.feature import hog
 from sklearn.externals import joblib
-from sklearn.cross_validation import train_test_split
+from sklearn.model_selection import train_test_split
 from moviepy.editor import VideoFileClip
 from scipy.ndimage.measurements import label
 
@@ -58,7 +59,7 @@ def bin_spatial(img, size=(32, 32)):
     # Return the feature vector
     return features
 
-# Define a function to compute color histogram features 
+# Define a function to compute color histogram features
 # NEED TO CHANGE bins_range if reading .png files with mpimg!
 def color_hist(img, nbins=32, bins_range=(0, 256)):
     # Compute the histogram of the color channels separately
@@ -110,7 +111,8 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
     # Return list of feature vectors
     return features
 
-def train_model(color_space, spatial_size, hist_bins, orient, pix_per_cell, cell_per_block, hog_channel):
+def train_model(svc_model_fname, color_space, spatial_size, hist_bins, orient, 
+                pix_per_cell, cell_per_block, hog_channel):
     print("Loading training data.")
 
     # Divide up into cars and notcars
@@ -180,10 +182,25 @@ def train_model(color_space, spatial_size, hist_bins, orient, pix_per_cell, cell
 
     return dist_pickle
 
+# Either load the model from the disk or train it.
+def get_classifier():
+    svc_model_fname = 'svc_pickel.p'
+    if os.path.isfile(svc_model_fname):
+        # load the model
+        dict = joblib.load(svc_model_fname)
+    else:
+        # train the model
+        dict = train_model(svc_model_fname, color_space, spatial_size, hist_bins, 
+            orient, pix_per_cell, cell_per_block, hog_channel)
+    svc = dict["svc"]
+    X_scaler = dict["scaler"]
+    return svc, X_scaler
+
 # Define a single function that can extract features using hog sub-sampling and make predictions
 def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, color_space, orient, 
         pix_per_cell, cell_per_block, spatial_size, hist_bins):
-    
+    global decision_threshold
+
     img_norm = img.astype(np.float32)/255
     
     img_tosearch = img_norm[ystart:ystop,xstart:xstop,:]
@@ -212,7 +229,7 @@ def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, color_spa
     hog1 = get_hog_features(ch1, orient, pix_per_cell, cell_per_block, feature_vec=False)
     hog2 = get_hog_features(ch2, orient, pix_per_cell, cell_per_block, feature_vec=False)
     hog3 = get_hog_features(ch3, orient, pix_per_cell, cell_per_block, feature_vec=False)
-    
+
     # Sliding window search!
     bboxes = []
     for xb in range(nxsteps):
@@ -237,16 +254,17 @@ def find_cars(img, ystart, ystop, xstart, xstop, scale, svc, X_scaler, color_spa
 
             # Scale features and make a prediction
             test_features = X_scaler.transform(np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1))
-            #test_features = X_scaler.transform(np.hstack((shape_feat, hist_feat)).reshape(1, -1))    
-            test_prediction = svc.predict(test_features)
+            # test_features = X_scaler.transform(np.hstack((shape_feat, hist_feat)).reshape(1, -1))    
+            # test_prediction = svc.predict(test_features)
+            test_decision = svc.decision_function(test_features)[0]
             
-            if test_prediction == 1:
+            if test_decision > decision_threshold:
                 xbox_left = np.int(xleft*scale)
                 ytop_draw = np.int(ytop*scale)
                 win_draw = np.int(window*scale)
                 bbox = ((xbox_left+xstart, ytop_draw+ystart), (xbox_left+win_draw+xstart, ytop_draw+win_draw+ystart))
                 bboxes.append(bbox)
-    
+
     return bboxes
 
 def add_heat(heatmap, bbox_list):
@@ -257,15 +275,21 @@ def add_heat(heatmap, bbox_list):
         heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
     # Return updated heatmap
     return heatmap
-    
+
 def apply_threshold(heatmap, threshold):
     # Zero out pixels below the threshold
     heatmap[heatmap <= threshold] = 0
     # Return thresholded map
     return heatmap
 
+def flatten(heatmap):
+    # Make all heats = 1
+    heatmap[heatmap > 0] = 1
+    # Return flattened map
+    return heatmap
+
 # Define a function to draw bounding boxes
-def draw_bboxes(img, bboxes, color=(0, 0, 255), thick=6):
+def draw_bboxes(img, bboxes, color=(0, 255, 0), thick=6):
     # Make a copy of the image
     imcopy = np.copy(img)
     # Iterate through the bounding boxes
@@ -275,7 +299,8 @@ def draw_bboxes(img, bboxes, color=(0, 0, 255), thick=6):
     # Return the image copy with boxes drawn
     return imcopy
 
-def draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6):
+# Draw bounding boxes produced from labels
+def draw_labeled_bboxes(img, labels, color=(0, 255, 0), thick=6):
     # Make a copy of the image
     imcopy = np.copy(img)
     # Iterate through all bounding boxes
@@ -292,13 +317,72 @@ def draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6):
         bb_width = bbox[1][0]-bbox[0][0]
         bb_height = bbox[1][1]-bbox[0][1]
         bb_aspect_ratio = bb_width/bb_height
-        if bb_aspect_ratio > 2 or bb_aspect_ratio < 0.5:
+        if bb_aspect_ratio > 2.3 or bb_aspect_ratio < 0.8:
             continue
         # Draw the box on the image
         cv2.rectangle(imcopy, bbox[0], bbox[1], color, thick)
     # Return the image
     return imcopy
 
+num_frames = 20 # Duration (in frames) of heatmaps to keep
+frames = deque(maxlen=num_frames)
+
+class Frame:
+    def __init__(self, bbox_list):
+        global img_height, img_width
+        global heat_threshold
+        # Init heatmap.
+        self.heatmap = np.zeros((img_height, img_width))
+        # Add heat to heatmap.
+        self.heatmap = add_heat(self.heatmap, bbox_list)
+        # Apply threshold to remove false positives.
+        self.heatmap = apply_threshold(self.heatmap, heat_threshold)
+        # Create flattened heatmap.
+        self.flatmap = flatten(self.heatmap)
+        '''
+        # Create labels from heatmap.
+        self.labels = label(self.heatmap)
+        # Find the peaks of the heatmap; one for each label.
+        # The peaks are used to tell when a car has been detected 
+        # for multiple frames in the past.
+        self.peak_coords = peak_local_max(self.heatmap, min_distance=20, 
+                labels=self.labels[0], num_peaks_per_label=1)
+        '''
+
+# The main pipeline
+def pipeline(img):
+    global frames, frame_threshold, num_frames
+    global svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins
+    # Find cars in image.
+    bbox_list = []
+    # Gather bounding boxes at different scales, using different search boundaries for each scale.
+    for scale, ystart, ystop, xstart, xstop in [[1.5, 400, 656, 0, img_width], [2.5, 380, 656, img_width-300, img_width]]:
+        bbox_list.extend(find_cars(img, ystart, ystop, xstart, xstop, scale, svc, 
+            X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins))
+    # Use bounding boxes to create new frame with heatmap.
+    frame = Frame(bbox_list)
+    # Combine the flattened heatmaps from all previous frames to create a time-based heatmap.
+    timemap = np.sum(np.array([f.flatmap for f in frames]), axis=0)
+    # Weight the heatmap from the current frame more than the previous frames.
+    timemap = frame.flatmap*current_frame_weight*num_frames + timemap*(1-current_frame_weight)*num_frames
+    timemap = timemap/num_frames
+    # Add the current frame to the list of previous frames.
+    frames.append(frame)
+    # Apply threshold to timemap to help remove false positives
+    timemap = apply_threshold(timemap, frame_threshold)
+    # Visualize the heatmap when displaying
+    timemap = np.clip(timemap, 0, 255)
+    # Find final boxes from heatmap using label function
+    labels = label(timemap)
+    # Draw boxes onto the image.
+    draw_label_img = draw_labeled_bboxes(img, labels)
+    if TEST_PIPELINE:
+        draw_boxes_img = draw_bboxes(img, bbox_list)
+        return draw_label_img, draw_boxes_img, timemap
+    else:
+        return draw_label_img
+
+# Set up the parameters for HOG feature extraction, spatial binning, and color histograms.
 color_space = 'YCrCb' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
 spatial_size = (32, 32)
 hist_bins = 16
@@ -307,89 +391,58 @@ pix_per_cell = 8
 cell_per_block = 2
 hog_channel = "ALL" # Can be 0, 1, 2, or "ALL"
 
-svc_model_fname = 'svc_pickel.p'
-if os.path.isfile(svc_model_fname): # load the model
-    dict = joblib.load(svc_model_fname)
-else: # train the model
-    dict = train_model(color_space, spatial_size, hist_bins, orient, pix_per_cell, cell_per_block, hog_channel)
-svc = dict["svc"]
-X_scaler = dict["scaler"]
-
+# Define image dimensions
 img_width = 1280
 img_height = 720
 
 TEST_HOG = False # If True, will test HOG output on test images
 TEST_PIPELINE = False # If True, will test pipeline on test images
 
+# Set up thresholds.
+heat_threshold = 0 # Minimum heatmap number required to justify a detection in one frame
+decision_threshold = 0 # Minimum value for classifier decisions
+current_frame_weight = 0.3 # How much to weight the current frame over the previous frames
+frame_threshold = 8 # Minimum heatmap frame detections required for true positive detection
 if TEST_PIPELINE:
-    heat_threshold = 0
-else:
-    heat_threshold = 7
-heat_age = 10 # duration (in frames) of heat to consider
-heat = np.zeros((heat_age,img_height,img_width)).astype(np.float)
-current_heat = 0
+    frame_threshold = 0
 
-# The main pipeline
-def pipeline(img):
-    global heat_age, heat, current_heat, heat_threshold
-    global svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins
-    # Find cars in image.
-    bbox_list = []
-    # Gather bounding boxes at 2 different scales, using different search boundaries for each scale.
-    for scale, ystart, ystop, xstart, xstop in [[0.8, 400, 445, 430, 930], [1.0, 400, 656, 0, img_width]]:
-        bbox_list.extend(find_cars(img, ystart, ystop, xstart, xstop, scale, svc, 
-            X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins))
-    # Add heat to heatmap.
-    if current_heat < heat_age:
-        heat[current_heat] = add_heat(heat[current_heat], bbox_list)
-        current_heat += 1
-    else:
-        for i in range(1, heat_age):
-            heat[i-1] = heat[i]
-        heat[heat_age-1] = add_heat(np.zeros_like(heat[0]), bbox_list)
-    combined_heat = np.sum(heat, axis=0)
-    # Apply threshold to help remove false positives
-    combined_heat = apply_threshold(combined_heat, heat_threshold)
-    # Visualize the heatmap when displaying
-    heatmap = np.clip(combined_heat, 0, 255)
-    # Find final boxes from heatmap using label function
-    labels = label(heatmap)
-    # Draw boxes onto the image.
-    draw_label_img = draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6)
-    if TEST_PIPELINE:
-        draw_boxes_img = draw_bboxes(img, bbox_list, color=(0, 0, 255), thick=6)
-        return draw_label_img, draw_boxes_img, heatmap
-    else:
-        return draw_label_img
+# Get the classifier.
+svc, X_scaler = get_classifier()
 
 if TEST_HOG:
     # Save hog output on random image from each class (car, non-car).
     i = 0
-    for fname in ["training_data/vehicles/KITTI_extracted/%d.png", "training_data/non-vehicles/GTI/image%d.png"]:
+    for fname in ["training_data/vehicles/KITTI_extracted/%d.png", 
+                    "training_data/non-vehicles/GTI/image%d.png"]:
         fnum = randint(1,1000)
         img = mpimg.imread(fname % fnum)
         img = img.astype(np.float32)/255
-        f, hog_img = get_hog_features(img[:,:,0], orient, pix_per_cell, cell_per_block, vis=True, feature_vec=True)
+        f, hog_img = get_hog_features(img[:,:,0], orient, pix_per_cell, 
+                                    cell_per_block, vis=True, feature_vec=True)
+        plt.clf()
         plt.imshow(hog_img)
-        plt.savefig('output_images/hog-class%d-img%d-%s-orient%d-ppc%d-cpb%d.png' % (i, fnum, color_space, orient, pix_per_cell, cell_per_block))
+        plt.savefig('output_images/hog-class%d-img%d-%s-orient%d-ppc%d-cpb%d.png' % 
+            (i, fnum, color_space, orient, pix_per_cell, cell_per_block))
         i += 1
+elif TEST_PIPELINE:
+    # Save images produced by pipeline using test images as input.
+    for i in range(1, 7):
+        frames.clear()
+        img = mpimg.imread('test_images/test%d.jpg' % i)
+        draw_label_img, draw_boxes_img, heatmap = pipeline(img)
+        plt.clf()
+        plt.imshow(heatmap, cmap='hot')
+        # plt.plot(peak_coords[:,1], peak_coords[:,0], 'r.')
+        plt.savefig('output_images/test%d-heatmap.png' % i)
+        plt.clf()
+        plt.imshow(draw_boxes_img)
+        plt.savefig('output_images/test%d-bboxes.png' % i)
+        plt.clf()
+        plt.imshow(draw_label_img)
+        plt.savefig('output_images/test%d-out.png' % i)
 else:
-    if TEST_PIPELINE:
-        # Save images produced by pipeline using test images as input.
-        for i in range(1, 7):
-            heat = np.zeros((heat_age,img_height,img_width)).astype(np.float)
-            current_heat = 0
-            img = mpimg.imread('test_images/test%d.jpg' % i)
-            draw_label_img, draw_boxes_img, heatmap = pipeline(img)
-            plt.imshow(heatmap, cmap='hot')
-            plt.savefig('output_images/test%d-heatmap.png' % i)
-            plt.imshow(draw_boxes_img)
-            plt.savefig('output_images/test%d-bboxes.png' % i)
-            plt.imshow(draw_label_img)
-            plt.savefig('output_images/test%d-out.png' % i)
-    else:
-        # Run pipeline over video.
-        soln_output = 'project_solution.mp4'
-        clip1 = VideoFileClip("project_video.mp4").subclip(26,37)
-        soln_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
-        soln_clip.write_videofile(soln_output, audio=False)
+    # Run pipeline over video.
+    soln_output = 'project_solution.mp4'
+    clip1 = VideoFileClip("project_video.mp4") #.subclip(4,14) #.subclip(36,43)
+    soln_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
+    soln_clip.write_videofile(soln_output, audio=False)
