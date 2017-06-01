@@ -299,7 +299,7 @@ def draw_labeled_bboxes(img, labels, color=(0, 0, 255), thick=6):
     # Return the image
     return imcopy
 
-color_space = 'HSV' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
+color_space = 'YCrCb' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
 spatial_size = (32, 32)
 hist_bins = 16
 orient = 9
@@ -390,6 +390,6 @@ else:
     else:
         # Run pipeline over video.
         soln_output = 'project_solution.mp4'
-        clip1 = VideoFileClip("project_video.mp4")
+        clip1 = VideoFileClip("project_video.mp4").subclip(26,37)
         soln_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
         soln_clip.write_videofile(soln_output, audio=False)
