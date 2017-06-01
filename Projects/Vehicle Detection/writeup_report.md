@@ -17,23 +17,23 @@ The goals / steps of this project are the following:
 [//]: # (Image References)
 [image0]: output_images/vehicle-721.png "Vehicle"
 [image1]: output_images/nonvehicle-166.png "Non-Vehicle"
-[image2]: output_images/hog-class0-img842-YCrCb-orient8-ppc8-cpb2.png "HOG example (YCrCb)"
-[image3]: output_images/hog-class0-img721-HSV-orient9-ppc8-cpb2.png "HOG example (HSV)"
+[image2]: output_images/hog-class0-img721-HSV-orient9-ppc8-cpb2.png "HOG example (HSV)"
+[image3]: output_images/hog-class0-img842-YCrCb-orient8-ppc8-cpb2.png "HOG example (YCrCb)"
 [image4]: output_images/test1-bboxes.png "Bounding Boxes"
 [image5]: output_images/test1-heatmap.png "Heatmap"
 [image6]: output_images/test1-out.png "Output"
-[image7]: output_images/video_frames/frame-35.png "Frame 35"
-[image8]: output_images/video_frames/frame-36.png "Frame 36"
-[image9]: output_images/video_frames/frame-37.png "Frame 37"
-[image10]: output_images/video_frames/frame-38.png "Frame 38"
-[image11]: output_images/video_frames/frame-39.png "Frame 39"
-[image12]: output_images/video_frames/frame-40.png "Frame 40"
-[image13]: output_images/video_frames/frame-41.png "Frame 41"
-[image14]: output_images/video_frames/frame-42.png "Frame 42"
-[image15]: output_images/video_frames/frame-43.png "Frame 43"
-[image16]: output_images/video_frames/frame-44.png "Frame 44"
-[image17]: output_images/video_frames/labels-44.png "Labels"
-[image18]: output_images/video_frames/bboxes-44.png "BBoxes"
+[image7]: output_images/video_frames/frame-20.png "Frame 20"
+[image8]: output_images/video_frames/frame-21.png "Frame 21"
+[image9]: output_images/video_frames/frame-22.png "Frame 22"
+[image10]: output_images/video_frames/frame-23.png "Frame 23"
+[image11]: output_images/video_frames/frame-24.png "Frame 24"
+[image12]: output_images/video_frames/frame-25.png "Frame 25"
+[image13]: output_images/video_frames/frame-26.png "Frame 26"
+[image14]: output_images/video_frames/frame-27.png "Frame 27"
+[image15]: output_images/video_frames/frame-28.png "Frame 28"
+[image16]: output_images/video_frames/frame-29.png "Frame 29"
+[image17]: output_images/video_frames/labels-29.png "Frame 29 Labels"
+[image18]: output_images/video_frames/bboxes-29.png "Frame 29 BBoxes"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/513/view) Points
 Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
@@ -58,7 +58,7 @@ I started by reading in all the `vehicle` and `non-vehicle` images (lines 116-12
 
 I then explored different color spaces and different `skimage.hog()` parameters (`orientations`, `pixels_per_cell`, and `cells_per_block`). I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
 
-Here is an example using the `YCrCb` color space and HOG parameters of `orientations=8`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)` on an image from the `vehicle` data set:
+Here is an example using the `HSV` color space and HOG parameters of `orientations=9`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)` on an image from the `vehicle` data set:
 
 ![alt text][image2]
 
@@ -67,24 +67,24 @@ Here is an example using the `YCrCb` color space and HOG parameters of `orientat
 I tried various combinations of parameters and decided on the following:
 
 ```
-color_space = 'HSV'
+color_space = 'YCrCb'
 orient = 9
 pix_per_cell = 8
 cell_per_block = 2
 ```
 
-This is because these parameters seem to produce a more consistently sensical output for HOG as compared to others. Here is an example HOG output using these parameters on an image from the `vehicle` data set:
+Here is an example HOG output using these parameters on an image from the `vehicle` data set:
 
 ![alt text][image3]
 
-As you can see, whereas the image produced using the `YCrCb` color space does not have a clear outline, this image clearly describes the outline of a car. This intuition about how it looks led me to choose these parameters for the classifier, and using these parameters does indeed improve the accuracy.
+As you can see, whereas the image produced using the `HSV` color space in the previous step clearly describes the outline of a car, this image's outline is not as clear. Despite the fact that the `HSV` color space seems to produce a more intuitive output for HOG as compared to others, the `YCrCb` color space performs consistently better during training.
 
 3\. **Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).**
 
-I trained a linear SVM (at lines 113-181 in my code) using features from HOG, spatial binning, and color histograms, with the following parameters, hard-coded at lines 302-308:
+I trained a linear SVM (at lines 114-183 in my code) using features from HOG, spatial binning, and color histograms, with the following parameters, hard-coded at lines 410-417:
 
 ```
-color_space = 'HSV'
+color_space = 'YCrCb'
 spatial_size = (32, 32)
 hist_bins = 16
 orient = 9
@@ -93,33 +93,35 @@ cell_per_block = 2
 hog_channel = "ALL"
 ```
 
-The features from all 3 of these operations are combined into a single feature vector, which is labeled with either a 1 or a 0, depending on whether it belongs to the `vehicle` or `non-vehicle` class, respectively.
+The features from all 3 of these operations are combined into a single feature vector of length 8412, which is labeled with either a 1 or a 0, depending on whether it belongs to the `vehicle` or `non-vehicle` class, respectively. Using the above parameters, the accuracy of the SVM on the validation data is 99.1%.
 
 ### Sliding Window Search
 
 1\. **Describe how (and identify where in your code) you implemented a sliding window search. How did you decide what scales to search and how much to overlap windows?**
 
-Instead of using the sliding window search function described in the earlier lessons, which computes the HOG features over and over for each window, I decided to use the `find_cars` function, defined at lines 183-250, which computes the HOG features beforehand, and then performs the sliding window search while re-using the same feature data. This proved much more efficient and saved a lot of time.
+Instead of using the sliding window search function described in the earlier lessons, which computes the HOG features over and over for each window, I decided to use the `find_cars` function, defined at lines 199-268, which computes the HOG features beforehand, and then performs the sliding window search while re-using the same feature data. This proved much more efficient and saved a lot of time.
 
-In the `pipeline` function, `find_cars` is called twice at two different scales: 0.8 and 1.0. This can be seen at lines 338-350. However, different search boundaries are defined for each scale. Specifically, the algorithm searches with windows at 0.8 scale only in the top 45 pixels of the road and between the middle 500 pixels, since this is where cars are expected to appear small. It searches with windows at 1.0 scale only in the lower 500 pixels of the road. This can be seen on line 339:
+In the main `pipeline` function defined at lines 364-408, `find_cars` is called twice at two different scales: 1.5 and 2.5. However, different search boundaries are defined for each scale. Specifically, the algorithm searches with windows at 2.5 scale only in the right-most 300 pixels of the road, since this is where cars are expected to appear large. It searches with windows at 1.0 scale across the entire road, which spans the whole width of the image and 256 pixels high. This can be seen on line 371:
 
 ```
-for scale, ystart, ystop, xstart, xstop in [[0.8, 400, 445, 430, 930], [1.0, 400, 656, 0, img_width]]:
+for scale, ystart, ystop, xstart, xstop in [[1.5, 400, 656, 0, img_width], [2.5, 380, 656, img_width-300, img_width]]:
 ```
 
-These scales were chosen because a scale that is too small (such as 0.5) results in a lot of false-positives, and all scales bigger than 1.0 are redundant, as they seem to identify cars equally as well as the 1.0 scale. As such, these extra scales aren't worth the performance loss to compute.
+These scales were chosen because a scale that is too small (such as 0.5) results in a lot of false-positives, and for the most part, scales bigger than 1.5 are redundant, since they seem to identify cars equally as well as the 1.5 scale. As such, these extra scales aren't worth the performance loss to compute.
 
-Instead of overlap, the `find_cars` function defines at line 207 how many cells to jump per step of the sliding window algorithm. I chose to keep the default value of 2 cells per step, since this provides some overlap without being too performance heavy.
+Instead of overlap, the `find_cars` function defines at line 224 how many cells to jump per step of the sliding window algorithm. I chose to keep the default value of 2 cells per step, since this provides some overlap without being too performance heavy.
 
 2\. **Show some examples of test images to demonstrate how your pipeline is working. What did you do to optimize the performance of your classifier?**
 
-Ultimately I searched on two scales using HSV 3-channel HOG features plus spatially binned color and histograms of color in the feature vector, which provided a nice result. To otpimize performance, I combined the hog feature extraction and sliding window search into one function.
+Ultimately I searched on two scales using HSV 3-channel HOG features plus spatially binned color and histograms of color in the feature vector, which provided a nice result. To optimize performance, I combined the hog feature extraction and sliding window search into one function.
 
-First, the pipeline calls the `find_cars` function to get all the bounding boxes of suspected vehicles in the image at 2 different scales. Here is an example of the bounding boxes produced by this function:
+First, the pipeline calls the `find_cars` function, which performs the HOG feature extraction and the sliding window search, testing images on the trained classifier in order to get all the bounding boxes of suspected vehicles in the image at 2 different scales. This happens at line 372. Here is an example of the bounding boxes produced by this function:
 
 ![alt text][image4]
 
-Next, the pipeline uses the bounding boxes to create a heatmap that shows the most likely candidates for separate cars in the image. This can be seen at lines 350-354. This is done over multiple frames, and then the heatmap is thresholded, so that false positives that only appear in a few frames are removed. Here is an example of a thresholded heatmap, created from the bounding boxes in the previous image:
+Next, the pipeline uses the bounding boxes to create a new `Frame` object with a `heatmap`. This can be seen at line 375. In the `Frame` class, at lines 338-349, a flattened version of the heatmap called `flatmap` is created. This is similar to the output of the `label` function, but it does not differentiate between groups of pixels. Instead, it simply takes all the heatmap values greater than 0 and flattens them all down to 1. The reason for doing this is so that heat generated by overlapping bounding boxes on the same frame is a separate metric from the heat generated by overlapping bounding boxes across multiple frames.
+
+This flatmap is computed for each frame, and then all the flatmaps from the previous 20 frames are combined into one single heatmap called `timemap`, at lines 376-380. When this sum is computed, the current frame is weighted as 30% of the sum, while the previous frames count for 70%. This is so that the bounding boxes in the current frame will create more heat in the `timemap` compared to the previous frames. Next, the `timemap` is thresholded at line 384, so that false positives that only appear in a few frames are removed. Here is an example of a thresholded `timemap`, created from the bounding boxes in the previous image:
 
 ![alt text][image5]
 
@@ -137,7 +139,9 @@ Here's a [link to my video result](project_solution.mp4)
 
 2. **Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.**
 
-I record the positions of positive detections for 10 frames at a time, and store them in an array of heatmaps called `heat` (at line 330). In each frame, I append the current frame's heatmap to `heat` before calculating the sum of all 10 heatmaps in `heat`, to get one single heatmap representing the past 10 frames. I then threshold that map by 7 to remove false positives and identify vehicle positions. This is based on the intuition that a detection is a false positive if it is a bounding box overlapped by 7 or fewer other bounding boxes from the same frame or a combination of frames from the previous 10 frames. I then use `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap. I then assume each blob corresponds to a separate vehicle. Finally, I construct bounding boxes to cover the area of each blob that has been detected.
+I record the positions of positive detections for 20 frames at a time, and store them in a queue (list) of Frame object called `frames` (at line 361). At each frame in the video, a new `Frame` object is added to the queue which stores the `heatmap` and `flatmap` values described in Step 2 of the previous section. Then, I calculate the sum of all 10 flatmaps in the queue, to get one single heatmap representing the past 10 frames, called `timemap`. This sum is weighted, as described earlier.
+
+Next, I threshold the `timemap` by 8 to remove false positives and identify vehicle positions. This is based on the intuition that a detection is a false positive if its bounding box is overlapped by other bounding boxes in less than ~half of the previous frames. I then use `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap. I then assume each blob corresponds to a separate vehicle. Finally, I construct bounding boxes to cover the area of each blob that has been detected.
 
 Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
 
@@ -167,10 +171,12 @@ Here's an example result showing the heatmap from a series of frames of video, t
 
 Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
 
-The approach I took with this project was to prioritize creating and training a good classifier by playing around with the parameters for HOG and the other image descriptors. After discovering the ideal parameters, I decided to optimize the pipeline by combining the sliding window search and the hog feature extraction into one function, and also keeping a history of detections for 10 frames. This seemed to work well.
+The approach I took with this project was to prioritize creating and training a good classifier by playing around with the parameters for HOG and the other image descriptors. After discovering the ideal parameters, I decided to optimize the pipeline by combining the sliding window search and the hog feature extraction into one function, and also keeping a history of detections for 20 frames. This seemed to work well.
 
 One problem I faced was detecing the white car. Many times that I tried to process the video input, it did not detect the white car at all. After browsing through the forums and discovering that other people had this issue as well, I carefully altered my model and made sure that my color spaces were being converted correctly, and that I was correctly scaling the input features for the classifier. Once I had all of this worked out, it began detecting the white car. It still doesn't do it perfectly, but it's much better than before.
 
-I have not yet produced a perfect processing algorithm, as there are still some false positives in the output, and it has some trouble detecting the white car. My pipeline will also likely fail on videos where the cars appear in different places in the video, or different sizes, since my pipeline makes certain assumptions about where the cars are and how big they will be.
+In my first submission of this project, my solution was not robust enough, so I heeded the advice of my reviewer, and made a few changes that drastically improved the performance of my algorithm. First of all, I stopped using the `HSV` color-space, and began using the `YCrCb` color space instead. This alone improved the test accuracy of my classifier from 98% to 99.1%. Also, instead of simply accepting the prediction provided by the classifier, I am now using the `svc.decision_function` with a higher threshold to eliminate more false positives. This removed most of the false positives in my video. Finally, I improved the robustness of my pipeline by separating the heat created from single frames and the heat created from multiple frames when thresholding. This made my output much more consistent and predictable. It also made my code more readable, since each frame is now represented by an instance of the `Frame` class.
 
-To make my pipeline more robust, I would spend more time manually separating out the time-sequenced images in the training data so that it doesn't overfit. I would also try to figure out new ways to optimize the pipeline so that the bounding boxes appear a little smoother and have less false positives.
+Despite these improvements, my pipeline will still likely fail on videos where the cars appear in different places in the video, or different sizes, since my pipeline makes certain assumptions about where the cars are and how big they will be.
+
+To make my pipeline even more robust, if I were to continue working on this project, I would spend more time manually separating out the time-sequenced images in the training data so that it doesn't overfit. I would also try to figure out new ways to optimize the pipeline so that the bounding boxes appear a little smoother and show fewer false positives.

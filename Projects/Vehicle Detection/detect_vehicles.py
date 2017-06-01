@@ -324,10 +324,18 @@ def draw_labeled_bboxes(img, labels, color=(0, 255, 0), thick=6):
     # Return the image
     return imcopy
 
-num_frames = 20 # Duration (in frames) of heatmaps to keep
-frames = deque(maxlen=num_frames)
+# Draw two images side-by-side with pyplot
+def plot_two(img1, img2, title1, title2, fontsize=50):
+    plt.clf()
+    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+    f.tight_layout()
+    ax1.imshow(img1)
+    ax1.set_title(title1, fontsize=fontsize)
+    ax2.imshow(img2, cmap='hot')
+    ax2.set_title(title2, fontsize=fontsize)
+    plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
 
-class Frame:
+class Frame: # Contains information for one frame of the video.
     def __init__(self, bbox_list):
         global img_height, img_width
         global heat_threshold
@@ -349,9 +357,13 @@ class Frame:
                 labels=self.labels[0], num_peaks_per_label=1)
         '''
 
+num_frames = 20 # Duration (in frames) of heatmaps to keep
+frames = deque(maxlen=num_frames) # Queue of previous frames
+current_frame = 0 # Current frame in video
+
 # The main pipeline
 def pipeline(img):
-    global frames, frame_threshold, num_frames
+    global frames, frame_threshold, num_frames, current_frame
     global svc, X_scaler, color_space, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins
     # Find cars in image.
     bbox_list = []
@@ -376,6 +388,19 @@ def pipeline(img):
     labels = label(timemap)
     # Draw boxes onto the image.
     draw_label_img = draw_labeled_bboxes(img, labels)
+    # Optionally save the video frame and heatmap.
+    if SAVE_VIDEO_FRAMES:
+        plot_two(img, timemap, ("Video Frame %d" % current_frame), "Heatmap")
+        plt.savefig('output_images/video_frames/frame-%d.png' % current_frame)
+        # Optionally save images of a frame's labels and bounding boxes
+        if current_frame == SPECIAL_VIDEO_FRAME:
+            plt.clf()
+            plt.imshow(labels[0], cmap='gray')
+            plt.savefig('output_images/video_frames/labels-%d.png' % current_frame)
+            plt.clf()
+            plt.imshow(draw_label_img)
+            plt.savefig('output_images/video_frames/bboxes-%d.png' % current_frame)
+        current_frame += 1
     if TEST_PIPELINE:
         draw_boxes_img = draw_bboxes(img, bbox_list)
         return draw_label_img, draw_boxes_img, timemap
@@ -397,6 +422,8 @@ img_height = 720
 
 TEST_HOG = False # If True, will test HOG output on test images
 TEST_PIPELINE = False # If True, will test pipeline on test images
+SAVE_VIDEO_FRAMES = True # If True, will save video frames with heatmaps
+SPECIAL_VIDEO_FRAME = 29 # If SAVE_VIDEO_FRAMES is True, will save this frame's bbox and labels
 
 # Set up thresholds.
 heat_threshold = 0 # Minimum heatmap number required to justify a detection in one frame
@@ -443,6 +470,6 @@ elif TEST_PIPELINE:
 else:
     # Run pipeline over video.
     soln_output = 'project_solution.mp4'
-    clip1 = VideoFileClip("project_video.mp4") #.subclip(4,14) #.subclip(36,43)
+    clip1 = VideoFileClip("project_video.mp4").subclip(29,31) #.subclip(4,14) #.subclip(36,43)
     soln_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
     soln_clip.write_videofile(soln_output, audio=False)
