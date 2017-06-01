@@ -1,5 +1,5 @@
 from keras.models import load_model
-import keras.utils as ut
+from keras.utils.visualize_util import plot
 
 model = load_model("model-a.h5")
-ut.plot_model(model, to_file='model.png')
+plot(model, to_file='model.png')

@@ -9,10 +9,11 @@ from keras.layers.pooling import MaxPooling2D
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
-USE_FLIPPED = True
+USE_FLIPPED = True # If True, will add flipped images and angles to training data set
 
-samples = []
+samples = [] # Array of training data
 
+# Load the training data samples from the csv and files.
 def load_samples(data_dir):
     global samples
     with open(data_dir+"/driving_log.csv") as csvfile:
@@ -23,6 +24,8 @@ def load_samples(data_dir):
             except ValueError:
                 continue
             samples.append(line)
+            # Add the flipped image to the data set, and add the 
+            # "flip" flag so that we know to flip the angle later.
             if USE_FLIPPED:
                 copy = list(line)
                 copy.append("flip")
@@ -37,6 +40,7 @@ load_samples('newdata') # more center lane driving in track one
 # load_samples('recoverydata6') # recovering from left and right side of track one
 # load_samples('track2data') # center lane driving in track two
 
+# split the dataset into test and validation data
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
 def generator(samples, batch_size=32):
@@ -49,7 +53,9 @@ def generator(samples, batch_size=32):
             images = []
             angles = []
             for batch_sample in batch_samples:
-                flipped = batch_sample[-1] == "flip"
+                flipped = batch_sample[-1] == "flip" # check to see if the "flip" flag is present
+                # The file path in the csv file is incorrect.
+                # But we can use this path to make the correct path to the image file.
                 old_path = batch_sample[0]
                 path_comps = old_path.split('/')
                 if len(path_comps) <= 2:
@@ -58,15 +64,16 @@ def generator(samples, batch_size=32):
                     folder = path_comps[-3]
                 filename = path_comps[-1]
                 new_path = folder+'/IMG/'+filename
+                # Finally read in the image using the correct path.
                 center_image = cv2.imread(new_path)
                 center_angle = float(batch_sample[3])
-                if flipped:
+                if flipped: # Flip the image and angle if it should be flipped.
                     center_image = cv2.flip(center_image, 1)
                     center_angle *= -1.
+                # Add the image and angle to the set of data and labels, respectively.
                 images.append(center_image)
                 angles.append(center_angle)
 
-            # trim image to only see section with road
             X_train = np.array(images)
             y_train = np.array(angles)
             yield shuffle(X_train, y_train)
@@ -75,9 +82,10 @@ def generator(samples, batch_size=32):
 train_generator = generator(train_samples, batch_size=64)
 validation_generator = generator(validation_samples, batch_size=64)
 
+# Create the model (based on NVIDIA architecture, but with only 4 conv layers)
 model = Sequential()
 model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(160,320,3)))
-model.add(Cropping2D(cropping=((70,25), (0,0))))
+model.add(Cropping2D(cropping=((70,25), (0,0)))) # trim image to only see section with road
 model.add(Convolution2D(24, 5, 5))
 model.add(MaxPooling2D((2, 2)))
 model.add(Activation('relu'))

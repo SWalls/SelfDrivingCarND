@@ -29,16 +29,19 @@ Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/4
 1\. **Submission includes all required files and can be used to run the simulator in autonomous mode.**
 
 My project includes the following files:
-* model.py containing the script to create and train the model
-* drive.py for driving the car in autonomous mode
-* model.h5 containing a trained convolution neural network 
-* writeup_report.md summarizing the results
+* **model.py** containing the script to create and train the model
+* **drive.py** for driving the car in autonomous mode
+* **model-a.h5** containing a trained convolution neural network (with recovery, reverse, track 2 data)
+* **model-b.h5** containing a trained convolution neural network (with only center lane driving data)
+* **run1.mp4** the video produced using model-b as input (before BGR->RGB change on line 36 in drive.py)
+* **run2.mp4** the video produced using model-a as input (after BGR->RGB change on line 36 in drive.py)
+* **writeup_report.md** summarizing the results
 
 2\. **Submission includes functional code**
 
 Using the Udacity provided simulator and my drive.py file, the car can be driven autonomously around the track by executing 
 ```sh
-python drive.py model.h5
+python drive.py model-a.h5
 ```
 
 3\. **Submission code is usable and readable**
@@ -49,23 +52,23 @@ The model.py file contains the code for training and saving the convolution neur
 
 1\. **An appropriate model arcthiecture has been employed**
 
-My model consists of a convolution neural network with 5x5 and 3x3 filter sizes and depths between 24 and 64 (model.py lines 81-90) 
+My model consists of a convolution neural network with 5x5 and 3x3 filter sizes and depths between 24 and 64 (model.py lines 89-98).
 
-The model includes RELU activation layers to introduce nonlinearity (code lines 83, 86, 89, 92, 95, 97), and the data is normalized in the model using a Keras lambda layer (code line 79). Max pooling with a 2x2 kernel is used after each convolutional layer to reduce dimensionality (code lines 82, 85, 88), and the input is cropped so that irrelevant information is ignored (code line 80). The model concludes with dense layers.
+The model includes RELU activation layers to introduce nonlinearity (code lines 83, 86, 89, 92, 95, 97), and the data is normalized in the model using a Keras lambda layer (code line 87). Max pooling with a 2x2 kernel is used after each convolutional layer to reduce dimensionality (code lines 90, 93, 96), and the input is cropped so that irrelevant information is ignored (code line 88). The model concludes with dense layers.
 
 2\. **Attempts to reduce overfitting in the model**
 
-The model contains a dropout layer in order to reduce overfitting (model.py line 91). 
+The model contains a dropout layer in order to reduce overfitting (model.py line 99). 
 
-The model was trained and validated on different data sets to ensure that the model was not overfitting (code line 31-38). The model was tested by running it through the simulator and ensuring that the vehicle could stay on the track.
+The model was trained and validated on different data sets to ensure that the model was not overfitting (code line 34-41). The model was tested by running it through the simulator and ensuring that the vehicle could stay on the track.
 
 3\. **Model parameter tuning**
 
-The model used an adam optimizer, so the learning rate was not tuned manually (model.py line 101).
+The model used an adam optimizer, so the learning rate was not tuned manually (model.py line 109).
 
 4\. **Appropriate training data**
 
-Training data was chosen to keep the vehicle driving on the road. I used a combination of center lane driving, recovering from the left and right sides of the road, driving in reverse, and driving on the second, more challenging, track. Ultimately, however, I ended up only using center lane driving data to produce my model, since the inclusion of the other data actually made the model less reliable on the first track.
+Training data was chosen to keep the vehicle driving on the road. I used a combination of center lane driving, recovering from the left and right sides of the road, driving in reverse, and driving on the second, more challenging, track. Ultimately, however, I ended up using different data to produce two good models. For the first model, `model-a.h5`, I trained it using all of the previously mentioned data (center, recovery, reverse, and track 2). The second model, `model-b.h5` was trained using only center lane driving data, since the inclusion of the other data actually made the model somewhat less reliable on the first track.
 
 In all of my data, I only included images from the center camera, since this was simpler than including the left and right cameras and adjusting the corresponding angles.
 
@@ -79,21 +82,21 @@ The overall strategy for deriving a model architecture was to augment the NVIDIA
 
 My first step was to use a convolution neural network model similar to the NVIDIA architecture. I thought this model might be appropriate because it has been proven to work for self-driving car technology in the past, and it seems slightly more sophisticated than the LeNet model.
 
-In order to gauge how well the model was working, I split my image and steering angle data into a training and validation set. I found that my first model had a low mean squared error on the training set but a high mean squared error on the validation set. This implied that the model was overfitting. 
+In order to gauge how well the model was working, I split my image and steering angle data into a training and validation set. I found that my first model had a low mean squared error on the training set but a high mean squared error on the validation set. This implied that the model was overfitting.
 
 To combat the overfitting, I modified the model by adding a dropout layer, and removing one of the convolution layers.
 
 Then I decided to add a cropping layer to remove irrelevant information from the images like the trees and the sky, which reduced the time it took to fit the model to the training data, and also slightly improved the accuracy on the validation set.
 
-The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track; usually it was just before the bridge. To improve the driving behavior in these cases, I decided to collect some of my own driving data to augment the provided data. At first, I collected more center lane driving data (code line 32) by manually driving around track one a couple of times. It turns out that this alone was enough extra data to create a good model that successfully drove the car around track one autonomously without falling off the track.
+The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track; usually it was just before the bridge. To improve the driving behavior in these cases, I decided to collect some of my own driving data to augment the provided data. At first, I collected more center lane driving data (code line 35) by manually driving around track one a couple of times. It turns out that this alone was enough extra data to create a good model that successfully drove the car around track one autonomously without falling off the track. **Or so I thought. (More on this later.)**
 
 Despite having made a successful model, I noticed it was a bit wobbly at points, and I wanted to see if adding more data would improve this. I manually created more training data of the car driving in reverse, recovering from the sides of the road, and even center lane driving on track two. This certainly made my model more generalizable, since it was now able to drive for longer on track two without falling off, but it ultimately made the model perform worse on track one. I could not get it to stay on the track when using all of this extra training data, so I decided to revert to the model with just the center lane driving data.
 
-At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road.
+At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road, as you can see in `run1.mp4`. **...Until this happened:** After my first project review, the reviewer pointed out there was a bug in my code: the drive.py file was expecting BGR images as input, but I trained my model with RGB images. This was a quick fix; I modified the code in the `drive.py` file to convert the image to RGB before passing it through the neural network. This simple change made my `model-b.h5` perform better in autonomous mode at first, but towards the end of the track, it actually performs **worse** when this "bug" is fixed! However, interestingly, `model-a.h5` performs much, much better than it did before, as you can see in `run2.mp4`! This would indicate that adding the extra data actually did help the model perform better, but this bug got in the way.
 
 2\. **Final Model Architecture**
 
-The final model architecture (model.py lines 78-99) consisted of a convolution neural network with the following layers and layer sizes:
+The final model architecture (model.py lines 85-107) consisted of a convolution neural network with the following layers and layer sizes:
 
 	1. Lambda (160x320x3)
 	2. Cropping2D (70x25x3)
@@ -133,7 +136,7 @@ I then recorded the vehicle recovering from the left side and right sides of the
 
 I also recorded the vehicle driving in the reverse direction around track one, with the intention of generalizing the model even further.
 
-Then I repeated this process on track two in order to get more data points. As previously mentioned, however, in the final model, I decided not to include the data from track two, recovery driving, or reverse driving, since it overcomplicated the model.
+Then I repeated this process on track two in order to get more data points. As previously mentioned, however, in one of the models, `model-b.h5`, I decided not to include the data from track two, recovery driving, or reverse driving, since it seemed to overcomplicated the model. However, this data is included in `model-a.h5`, which performs pretty well on track one.
 
 To augment the data sat, I also flipped images and angles thinking that this would help generalize the training data, prevent overfitting, and essentially double the amount of data collected. For example, here is an image that has then been flipped:
 
