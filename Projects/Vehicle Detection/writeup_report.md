@@ -167,3 +167,10 @@ Here's an example result showing the heatmap from a series of frames of video, t
 
 Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
 
+The approach I took with this project was to prioritize creating and training a good classifier by playing around with the parameters for HOG and the other image descriptors. After discovering the ideal parameters, I decided to optimize the pipeline by combining the sliding window search and the hog feature extraction into one function, and also keeping a history of detections for 10 frames. This seemed to work well.
+
+One problem I faced was detecing the white car. Many times that I tried to process the video input, it did not detect the white car at all. After browsing through the forums and discovering that other people had this issue as well, I carefully altered my model and made sure that my color spaces were being converted correctly, and that I was correctly scaling the input features for the classifier. Once I had all of this worked out, it began detecting the white car. It still doesn't do it perfectly, but it's much better than before.
+
+I have not yet produced a perfect processing algorithm, as there are still some false positives in the output, and it has some trouble detecting the white car. My pipeline will also likely fail on videos where the cars appear in different places in the video, or different sizes, since my pipeline makes certain assumptions about where the cars are and how big they will be.
+
+To make my pipeline more robust, I would spend more time manually separating out the time-sequenced images in the training data so that it doesn't overfit. I would also try to figure out new ways to optimize the pipeline so that the bounding boxes appear a little smoother and have less false positives.
