@@ -109,7 +109,7 @@ VectorXd Tools::hFunction(const VectorXd &x_state)
     }
 
     //compute the h function
-    h << c2, phi, (px * vx + py * vy);
+    h << c2, phi, (px * vx + py * vy)/c2;
 
     return h;
 }
