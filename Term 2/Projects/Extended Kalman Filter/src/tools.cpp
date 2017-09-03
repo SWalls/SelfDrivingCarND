@@ -91,25 +91,18 @@ VectorXd Tools::hFunction(const VectorXd &x_state)
     float c2 = sqrt(c1);
 
     //check division by zero
-    if (fabs(c1) < 0.0001)
+    if (fabs(c1) < 0.0001 || fabs(px) < 0.0001)
     {
         cout << "hFunction () - Error - Division by Zero" << endl;
         return h;
     }
 
     float phi = atan2(py, px);
-    // normalize angle phi to range [-pi, pi]
-    while (phi < (-1 * M_PI))
-    {
-        phi += 2 * M_PI;
-    }
-    while (phi > M_PI)
-    {
-        phi -= 2 * M_PI;
-    }
 
     //compute the h function
     h << c2, phi, (px * vx + py * vy)/c2;
+
+    cout << "h = " << h << endl;
 
     return h;
 }
