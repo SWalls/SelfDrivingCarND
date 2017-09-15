@@ -124,7 +124,7 @@ void UKF::ProcessMeasurement(MeasurementPackage measurement_pack)
             float ix = ro * cos(theta);
             float iy = ro * sin(theta);
             //set the state with the initial location and zero velocity
-            x_ << ix, iy, 1, 0, 0;
+            x_ << ix, iy, 0, 0, 0;
         }
         else if (measurement_pack.sensor_type_ == MeasurementPackage::LASER)
         {
@@ -134,7 +134,7 @@ void UKF::ProcessMeasurement(MeasurementPackage measurement_pack)
             float ix = measurement_pack.raw_measurements_[0];
             float iy = measurement_pack.raw_measurements_[1];
             //set the state with the initial location and zero velocity
-            x_ << ix, iy, 1, 0, 0;
+            x_ << ix, iy, 0, 0, 0;
         }
 
         // done initializing, no need to predict or update
@@ -164,8 +164,8 @@ void UKF::ProcessMeasurement(MeasurementPackage measurement_pack)
 
     if (measurement_pack.sensor_type_ == MeasurementPackage::RADAR)
     {
-        cout << endl
-             << "-- RADAR --" << endl;
+        // cout << endl
+        //      << "-- RADAR --" << endl;
         if (use_radar_)
         {
             // Radar updates
@@ -174,8 +174,8 @@ void UKF::ProcessMeasurement(MeasurementPackage measurement_pack)
     }
     else
     {
-        cout << endl
-             << "-- LASER --" << endl;
+        // cout << endl
+        //      << "-- LASER --" << endl;
         if (use_laser_)
         {
             // Laser updates
@@ -205,31 +205,6 @@ void UKF::Prediction(double delta_t)
     SigmaPointPrediction(delta_t);
     PredictMeanAndCovariance();
 }
-
-/**
-* Generate sigma points into matrix.
-*/
-/*
-MatrixXd UKF::GenerateSigmaPoints() {
-    //create sigma point matrix
-    MatrixXd Xsig = MatrixXd(n_x_, 2 * n_x_ + 1);
-
-    //calculate square root of P
-    MatrixXd A = P_.llt().matrixL();
-    
-    //set first column of sigma point matrix
-    Xsig.col(0) = x_;
-
-    //set remaining sigma points
-    for (int i = 0; i < n_x; i++)
-    {
-        Xsig.col(i+1)     = x + sqrt(lambda+n_x) * A.col(i);
-        Xsig.col(i+1+n_x) = x - sqrt(lambda+n_x) * A.col(i);
-    }
-
-    return Xsig;
-}
-*/
 
 /**
 * Augment sigma points.
@@ -359,11 +334,13 @@ void UKF::PredictMeanAndCovariance()
         P_ = P_ + weights_(i) * x_diff * x_diff.transpose();
     }
 
+    /*
     //print result
     std::cout << "Predicted state" << std::endl;
     std::cout << x_ << std::endl;
     std::cout << "Predicted covariance matrix" << std::endl;
     std::cout << P_ << std::endl;
+    */
 }
 
 /**
@@ -501,11 +478,13 @@ void UKF::PredictRadarMeasurement(int n_z, MatrixXd *Z_out, VectorXd *z_out, Mat
         0, 0, std_radrd_ * std_radrd_;
     S = S + R;
 
+    /*
     //print result
     std::cout << "(RADAR) z_pred: " << std::endl
               << z_pred << std::endl;
     std::cout << "(RADAR) S: " << std::endl
               << S << std::endl;
+    */
 
     //write result
     *Z_out = Zsig;
@@ -563,9 +542,11 @@ void UKF::UpdateState(int n_z, MeasurementPackage measurement_pack, MatrixXd Zsi
     x_ = x_ + K * z_diff;
     P_ = P_ - K * S * K.transpose();
 
+    /*
     //print result
     std::cout << "(RADAR) Updated state x: " << std::endl
               << x_ << std::endl;
     std::cout << "(RADAR) Updated state covariance P: " << std::endl
               << P_ << std::endl;
+    */
 }
