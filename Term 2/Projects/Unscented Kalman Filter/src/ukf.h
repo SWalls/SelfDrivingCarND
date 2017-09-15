@@ -10,8 +10,9 @@
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
-class UKF {
-public:
+class UKF
+{
+  public:
     ///* initially set to false, set to true in first call of ProcessMeasurement
     bool is_initialized_;
 
@@ -55,7 +56,7 @@ public:
     double std_radphi_;
 
     ///* Radar measurement noise standard deviation radius change in m/s
-    double std_radrd_ ;
+    double std_radrd_;
 
     ///* Weights of sigma points
     VectorXd weights_;
@@ -69,13 +70,11 @@ public:
     ///* Sigma point spreading parameter
     double lambda_;
 
-
     ///* Laser H matrix
     MatrixXd H_laser_;
-  
+
     ///* Laser measurement covariance matrix
     MatrixXd R_laser_;
-
 
     /**
     * Constructor
@@ -130,7 +129,7 @@ public:
     /**
     * Use sigma points to predict the radar measurement.
     */
-    void PredictRadarMeasurement(int n_z, MatrixXd* Z_out, VectorXd* z_out, MatrixXd* S_out);
+    void PredictRadarMeasurement(int n_z, MatrixXd *Z_out, VectorXd *z_out, MatrixXd *S_out);
 
     /**
     * Use measurement prediction to update the state and covariance matrix.
