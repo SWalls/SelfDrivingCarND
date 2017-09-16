@@ -361,12 +361,13 @@ void UKF::UpdateLidar(MeasurementPackage measurement_pack)
     /** Update the state by using Extended Kalman Filter equations. */
 
     // we only care about position variables with laser
-    float px = measurement_pack.raw_measurements_(0);
-    float py = measurement_pack.raw_measurements_(1);
-    VectorXd z = VectorXd(2);
-    z << px, py;
+    VectorXd z = measurement_pack.raw_measurements_;
+    float px = z[0];
+    float py = z[1];
+    VectorXd z_aug = VectorXd(2);
+    z_aug << px, py;
     VectorXd z_pred = H_laser_ * x_;
-    VectorXd y = z - z_pred;
+    VectorXd y = z_aug - z_pred;
 
     // normalize angle phi to range [-pi, pi]
     float phi = y[1];
@@ -392,6 +393,11 @@ void UKF::UpdateLidar(MeasurementPackage measurement_pack)
     long x_size = x_.size();
     MatrixXd I = MatrixXd::Identity(x_size, x_size);
     P_ = (I - K * H_laser_) * P_;
+
+    // Calculate Normalized innovation squared (NIS)
+    VectorXd y_true = z - z_pred;
+    float NIS = y_true.transpose() * S.inverse() * y_true;
+    cout << "NIS (LIDAR) = " << NIS << endl;
 }
 
 /**
@@ -549,4 +555,8 @@ void UKF::UpdateState(int n_z, MeasurementPackage measurement_pack, MatrixXd Zsi
     std::cout << "(RADAR) Updated state covariance P: " << std::endl
               << P_ << std::endl;
     */
+
+    // Calculate Normalized innovation squared (NIS)
+    float NIS = z_diff.transpose() * S.inverse() * z_diff;
+    cout << "NIS (RADAR) = " << NIS << endl;
 }
