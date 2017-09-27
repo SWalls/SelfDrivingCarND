@@ -99,10 +99,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		const std::vector<LandmarkObs> &observations, const Map &map_landmarks) {
 	// Update the weights of each particle using a multvariate Gaussian distribution.
 	for (int i = 0; i < num_particles; ++i) {
-		Particle particle = particles[i];
-
 		// Reset particle weight
-		particle.weight = 1.0;
+		particles[i].weight = 1.0;
 		std::vector<int> associations;
 		std::vector<double> sense_x;
 		std::vector<double> sense_y;
@@ -113,8 +111,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			LandmarkObs obsT;
 
 			// Transform from vehicle coordinates to map coordinates.
-			obsT.x = particle.x + (obs.x * cos(particle.theta)) + (obs.y * sin(particle.theta));
-			obsT.y = particle.y + (obs.x * sin(particle.theta)) - (obs.y * cos(particle.theta));
+			obsT.x = particles[i].x + (obs.x * cos(particles[i].theta)) + (obs.y * sin(particles[i].theta));
+			obsT.y = particles[i].y + (obs.x * sin(particles[i].theta)) - (obs.y * cos(particles[i].theta));
 
 			// Associate transformed observation with landmark identifiers.
 			float min_distance = 9999999999;
@@ -131,8 +129,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
 			// If we found a landmark...
 			if (nearest_landmark > -1) {
-				cout << "Found nearest landmark!" << endl;
-
 				// Calculate multivariate Gaussian distribution.
 				float mu_x = map_landmarks.landmark_list[nearest_landmark].x_f;
 				float mu_y = map_landmarks.landmark_list[nearest_landmark].y_f;
@@ -143,7 +139,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 				long double multiplier = (1/(2*M_PI*std_x*std_y))*exp(-(fraction_one+fraction_two));
 
 				// Adjust particle weight.
-				particle.weight *= multiplier;
+				particles[i].weight *= multiplier;
 
 				// Update particle associations.
 				associations.push_back(map_landmarks.landmark_list[nearest_landmark].id_i);
@@ -153,10 +149,10 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		}
 
 		// Record final particle weight.
-		weights[i] = particle.weight;
+		weights[i] = particles[i].weight;
 
 		// Assign associations.
-		this->SetAssociations(particle, associations, sense_x, sense_y);
+		this->SetAssociations(particles[i], associations, sense_x, sense_y);
 	}
 }
 
