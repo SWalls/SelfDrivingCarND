@@ -156,7 +156,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		weights[i] = particle.weight;
 
 		// Assign associations.
-		this.SetAssociations(particle, associations, sense_x, sense_y);
+		this->SetAssociations(particle, associations, sense_x, sense_y);
 	}
 }
 
