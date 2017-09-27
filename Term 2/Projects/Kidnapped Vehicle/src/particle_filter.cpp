@@ -3,6 +3,8 @@
  *
  *  Created on: Dec 12, 2016
  *      Author: Tiffany Huang
+ *  Modified on: Sep 27, 2017
+ *      Author: Soeren Walls
  */
 
 #include <random>
@@ -27,8 +29,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	default_random_engine gen;
 	
 	// Create normal (Gaussian) distributions for x, y, and theta.
-	normal_distribution<double> dist_x(gps_x, std[0]);
-	normal_distribution<double> dist_y(gps_y, std[1]);
+	normal_distribution<double> dist_x(x, std[0]);
+	normal_distribution<double> dist_y(y, std[1]);
 	normal_distribution<double> dist_theta(theta, std[2]);
 
 	// Initialize all particles to first position (based on estimates of 
@@ -115,7 +117,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			obsT.y = particle.y + (obs.x * sin(particle.theta) - obs.y * cos(particle.theta));
 
 			// Associate transformed observation with landmark identifiers.
-			float min_distance = FLT_MAX;
+			float min_distance = 9999999999;
 			int nearest_landmark;
 			for (int k = 0; k < map_landmarks.landmark_list.size(); ++k) {
 				float map_x = map_landmarks.landmark_list[k].x_f;
@@ -148,7 +150,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 void ParticleFilter::resample() {
 	// Resample particles with replacement with probability proportional to their weight.
 	std::vector<Particle> new_particles;
-	std::discrete_distribution d(weights);
+	std::discrete_distribution<> d(weights.begin(), weights.end());
 	std::random_device rd;
     std::mt19937 gen(rd());
 	for (int i = 0; i < num_particles; ++i) {
