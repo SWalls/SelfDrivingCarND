@@ -140,7 +140,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		}
 
 		// Record final particle weight.
-		weights[i[ = particle.weight;
+		weights[i] = particle.weight;
 	}
 }
 
