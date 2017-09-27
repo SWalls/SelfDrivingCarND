@@ -110,12 +110,12 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			LandmarkObs obsT;
 
 			// Transform from vehicle coordinates to map coordinates.
-			obsT.x = particle.x + (obs.x * cos(particle.theta) + obs.y * sin(particle.theta));
-			obsT.y = particle.y + (obs.x * sin(particle.theta) - obs.y * cos(particle.theta));
+			obsT.x = particle.x + (obs.x * cos(particle.theta)) + (obs.y * sin(particle.theta));
+			obsT.y = particle.y + (obs.x * sin(particle.theta)) - (obs.y * cos(particle.theta));
 
 			// Associate transformed observation with landmark identifiers.
 			float min_distance = 9999999999;
-			int nearest_landmark;
+			int nearest_landmark = -1;
 			for (int k = 0; k < map_landmarks.landmark_list.size(); ++k) {
 				float map_x = map_landmarks.landmark_list[k].x_f;
 				float map_y = map_landmarks.landmark_list[k].y_f;
@@ -126,17 +126,20 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 				}
 			}
 
-			// Calculate multivariate Gaussian distribution.
-			float mu_x = map_landmarks.landmark_list[nearest_landmark].x_f;
-			float mu_y = map_landmarks.landmark_list[nearest_landmark].y_f;
-			double std_x = std_landmark[0];
-			double std_y = std_landmark[1];
-			double fraction_one = pow(obsT.x-mu_x, 2)/(2*std_x*std_x);
-			double fraction_two = pow(obsT.y-mu_y, 2)/(2*std_y*std_y);
-			long double multiplier = 1/(2*M_PI*std_x*std_y)*exp(-(fraction_one+fraction_two));
+			// If we found a landmark within sensor range...
+			if (nearest_landmark > -1 && min_distance <= sensor_range) {
+				// Calculate multivariate Gaussian distribution.
+				float mu_x = map_landmarks.landmark_list[nearest_landmark].x_f;
+				float mu_y = map_landmarks.landmark_list[nearest_landmark].y_f;
+				double std_x = std_landmark[0];
+				double std_y = std_landmark[1];
+				double fraction_one = pow(obsT.x-mu_x, 2)/(2*std_x*std_x);
+				double fraction_two = pow(obsT.y-mu_y, 2)/(2*std_y*std_y);
+				long double multiplier = (1/(2*M_PI*std_x*std_y))*exp(-(fraction_one+fraction_two));
 
-			// Adjust particle weight.
-			particle.weight *= multiplier;
+				// Adjust particle weight.
+				particle.weight *= multiplier;
+			}
 		}
 
 		// Record final particle weight.
