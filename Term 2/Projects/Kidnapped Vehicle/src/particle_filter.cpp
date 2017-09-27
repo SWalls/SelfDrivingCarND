@@ -103,6 +103,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
 		// Reset particle weight
 		particle.weight = 1.0;
+		std::vector<int> associations;
+		std::vector<double> sense_x;
+		std::vector<double> sense_y;
 
 		// Calculate new weight using data association.
 		for (int j = 0; j < observations.size(); ++j) {
@@ -119,15 +122,17 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			for (int k = 0; k < map_landmarks.landmark_list.size(); ++k) {
 				float map_x = map_landmarks.landmark_list[k].x_f;
 				float map_y = map_landmarks.landmark_list[k].y_f;
-				float distance = sqrt(pow(obsT.x - map_x, 2) + pow(obsT.y - map_y, 2));
-				if (distance < min_distance) {
+				float distance = dist(obsT.x, obsT.y, map_x, map_y);
+				if (distance < min_distance && distance <= sensor_range) {
 					min_distance = distance;
 					nearest_landmark = k;
 				}
 			}
 
-			// If we found a landmark within sensor range...
-			if (nearest_landmark > -1 && min_distance <= sensor_range) {
+			// If we found a landmark...
+			if (nearest_landmark > -1) {
+				cout << "Found nearest landmark!" << endl;
+
 				// Calculate multivariate Gaussian distribution.
 				float mu_x = map_landmarks.landmark_list[nearest_landmark].x_f;
 				float mu_y = map_landmarks.landmark_list[nearest_landmark].y_f;
@@ -139,11 +144,19 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
 				// Adjust particle weight.
 				particle.weight *= multiplier;
+
+				// Update particle associations.
+				associations.push_back(map_landmarks.landmark_list[nearest_landmark].id_i);
+				sense_x.push_back(obsT.x);
+				sense_y.push_back(obsT.y);
 			}
 		}
 
 		// Record final particle weight.
 		weights[i] = particle.weight;
+
+		// Assign associations.
+		this.SetAssociations(particle, associations, sense_x, sense_y);
 	}
 }
 
