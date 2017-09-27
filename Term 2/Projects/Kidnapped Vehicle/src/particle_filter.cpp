@@ -97,9 +97,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
 		const std::vector<LandmarkObs> &observations, const Map &map_landmarks) {
-	// Clear all current weights.
-	weights.clear();
-
 	// Update the weights of each particle using a multvariate Gaussian distribution.
 	for (int i = 0; i < num_particles; ++i) {
 		Particle particle = particles[i];
@@ -122,7 +119,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			for (int k = 0; k < map_landmarks.landmark_list.size(); ++k) {
 				float map_x = map_landmarks.landmark_list[k].x_f;
 				float map_y = map_landmarks.landmark_list[k].y_f;
-				float distance = sqrt(pow(obsT.x - map_x, 2) - pow(obsT.y - map_y, 2));
+				float distance = sqrt(pow(obsT.x - map_x, 2) + pow(obsT.y - map_y, 2));
 				if (distance < min_distance) {
 					min_distance = distance;
 					nearest_landmark = k;
@@ -143,7 +140,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		}
 
 		// Record final particle weight.
-		weights.push_back(particle.weight);
+		weights[i[ = particle.weight;
 	}
 }
 
@@ -161,7 +158,7 @@ void ParticleFilter::resample() {
 
 Particle ParticleFilter::SetAssociations(Particle particle, std::vector<int> associations, std::vector<double> sense_x, std::vector<double> sense_y)
 {
-	//particle: the particle to assign each listed association, and association's (x,y) world coordinates mapping to
+	// particle: the particle to assign each listed association, and association's (x,y) world coordinates mapping to
 	// associations: The landmark id that goes along with each listed association
 	// sense_x: the associations x mapping already converted to world coordinates
 	// sense_y: the associations y mapping already converted to world coordinates
