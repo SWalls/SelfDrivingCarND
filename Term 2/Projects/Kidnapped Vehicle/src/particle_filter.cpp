@@ -89,9 +89,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 		normal_distribution<double> dist_theta(new_theta, std_pos[2]);
 
 		// Assign new particle values.
-		particle.x = dist_x(gen);
-		particle.y = dist_y(gen);
-		particle.theta = dist_theta(gen);
+		particles[i].x = dist_x(gen);
+		particles[i].y = dist_y(gen);
+        particles[i].theta = dist_theta(gen);
 	}
 }
 
@@ -111,8 +111,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			LandmarkObs obsT;
 
 			// Transform from vehicle coordinates to map coordinates.
-			obsT.x = particles[i].x + (obs.x * cos(particles[i].theta)) + (obs.y * sin(particles[i].theta));
-			obsT.y = particles[i].y + (obs.x * sin(particles[i].theta)) - (obs.y * cos(particles[i].theta));
+			obsT.x = particles[i].x + (obs.x * cos(particles[i].theta)) - (obs.y * sin(particles[i].theta));
+			obsT.y = particles[i].y + (obs.x * sin(particles[i].theta)) + (obs.y * cos(particles[i].theta));
 
 			// Associate transformed observation with landmark identifiers.
 			float min_distance = 9999999999;
@@ -136,7 +136,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 				double std_y = std_landmark[1];
 				double fraction_one = pow(obsT.x-mu_x, 2)/(2*std_x*std_x);
 				double fraction_two = pow(obsT.y-mu_y, 2)/(2*std_y*std_y);
-				long double multiplier = (1/(2*M_PI*std_x*std_y))*exp(-(fraction_one+fraction_two));
+				long double multiplier = (1.0/(2*M_PI*std_x*std_y))*exp(-(fraction_one+fraction_two));
 
 				// Adjust particle weight.
 				particles[i].weight *= multiplier;
@@ -152,7 +152,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		weights[i] = particles[i].weight;
 
 		// Assign associations.
-		this->SetAssociations(particles[i], associations, sense_x, sense_y);
+		particles[i] = SetAssociations(particles[i], associations, sense_x, sense_y);
 	}
 }
 
