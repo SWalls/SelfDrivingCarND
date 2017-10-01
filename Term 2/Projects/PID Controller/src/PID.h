@@ -6,15 +6,21 @@ public:
   /*
   * Errors
   */
+  // Proportional error term
   double p_error;
+  // Integral error term
   double i_error;
+  // Derivative error term
   double d_error;
 
   /*
   * Coefficients
   */ 
+  // Proportional coefficient
   double Kp;
+  // Integral coefficient
   double Ki;
+  // Derivative coefficient
   double Kd;
 
   /*
