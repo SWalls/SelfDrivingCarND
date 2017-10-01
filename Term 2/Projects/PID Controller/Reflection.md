@@ -21,6 +21,6 @@ The following values worked well for me: **P=-0.2, I=0.0, D=-3.0**.
 
 You'll notice that I not only implemented the steering algorithm, but I also used a PID controller to control the throttling (acceleration) of the car. This was essentially the same idea as steering, but instead of trying to get to a center point on the road (x=0), the PID controller for speed tried to maintain a constant throttle of 0.8. 
 
-sing the same exact error metric as the steering control (CTE), I was able to get an average speed of around 50mph, using the following parameters: **P=-0.6, I=0.0, D=1.0**.
+Using the same exact error metric as the steering control (CTE), I was able to get an average speed of around 50mph, using the following parameters: **P=-0.6, I=0.0, D=1.0**.
 
 Again, this was done via manual tuning. As you can see in the simulation, it runs a lot like you might expect a human to drive - slowing down at sharp turns, and speeding up during straighter parts of the track. This was also a lot of fun to play around with.
