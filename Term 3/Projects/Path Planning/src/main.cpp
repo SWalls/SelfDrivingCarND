@@ -257,79 +257,49 @@ void generatePath(const vector<double> previous_path_x,
   }
 }
 
-// Check if there is a car less than 30 meters in front of me.
-bool check_car_front(const vector<vector<double>> sensor_fusion,
-        const int prev_path_size, double car_s, const int current_lane) {
+// Check if there is a car less than 30 meters in front of me or behind me,
+// or if there is a car to the left or the right of me.
+void check_car_surroundings(const vector<vector<double>> sensor_fusion,
+        const int prev_path_size, double car_s, const int current_lane,
+        bool &car_front, bool &car_back, bool &car_left, bool &car_right) {
   for (int i = 0; i < sensor_fusion.size(); i++) {
     double other_car_d = sensor_fusion[i][6];
+    double vx = sensor_fusion[i][3];
+    double vy = sensor_fusion[i][4];
+    double speed = sqrt(vx*vx + vy*vy);
+    double other_car_s = sensor_fusion[i][5];
+    // Project the s value ahead into the future using the previous path.
+    other_car_s += ((double)prev_path_size*TIME_INC*speed);
     if (other_car_d > (LANE_WIDTH * current_lane) && 
             other_car_d < (LANE_WIDTH * current_lane + LANE_WIDTH)) {
       // The other car is in my lane!
-      double vx = sensor_fusion[i][3];
-      double vy = sensor_fusion[i][4];
-      double speed = sqrt(vx*vx + vy*vy);
-      double other_car_s = sensor_fusion[i][5];
-      // Project the s value ahead into the future using the previous path.
-      other_car_s += ((double)prev_path_size*TIME_INC*speed);
       if (other_car_s > car_s && other_car_s - car_s < 30) {
         // Other car is less than 30 meters in front of me!
-        return true;
+        car_front = true;
+      } else if (other_car_s < car_s && car_s - other_car_s < 30) {
+        // Other car is less than 30 meters behind me!
+        car_back = true;
       }
-    }
-  }
-  return false;
-}
-
-// Check if there is a car to the left of me, or a car that will be to the left
-// of me soon.
-bool check_car_left(const vector<vector<double>> sensor_fusion,
-        const int prev_path_size, double car_s, const int current_lane) {
-  for (int i = 0; i < sensor_fusion.size(); i++) {
-    double other_car_d = sensor_fusion[i][6];
-    if (other_car_d > (LANE_WIDTH * (current_lane - 1)) && 
+    } else if (other_car_d > (LANE_WIDTH * (current_lane - 1)) && 
             other_car_d < (LANE_WIDTH * (current_lane - 1) + LANE_WIDTH)) {
       // The other car is in the lane to the left of me!
-      double vx = sensor_fusion[i][3];
-      double vy = sensor_fusion[i][4];
-      double speed = sqrt(vx*vx + vy*vy);
-      double other_car_s = sensor_fusion[i][5];
-      // Project the s value ahead into the future using the previous path.
-      other_car_s += ((double)prev_path_size*TIME_INC*speed);
       if ((other_car_s > car_s && other_car_s - car_s < 50) || 
               (other_car_s <= car_s && car_s - other_car_s < 5)) {
         // Other car is less than 50 meters in front of me, or less than 2
         // meters behind me!
-        return true;
+        car_left = true;
       }
-    }
-  }
-  return false;
-}
-
-// Check if there is a car to the right of me, or a car that will be to the right
-// of me soon.
-bool check_car_right(const vector<vector<double>> sensor_fusion,
-        const int prev_path_size, double car_s, const int current_lane) {
-  for (int i = 0; i < sensor_fusion.size(); i++) {
-    double other_car_d = sensor_fusion[i][6];
-    if (other_car_d > (LANE_WIDTH * (current_lane + 1)) && 
+    } else if (other_car_d > (LANE_WIDTH * (current_lane + 1)) && 
             other_car_d < (LANE_WIDTH * (current_lane + 1) + LANE_WIDTH)) {
-      // The other car is in the lane to the left of me!
-      double vx = sensor_fusion[i][3];
-      double vy = sensor_fusion[i][4];
-      double speed = sqrt(vx*vx + vy*vy);
-      double other_car_s = sensor_fusion[i][5];
-      // Project the s value ahead into the future using the previous path.
-      other_car_s += ((double)prev_path_size*TIME_INC*speed);
+      // The other car is in the lane to the right of me!
       if ((other_car_s > car_s && other_car_s - car_s < 50) || 
               (other_car_s <= car_s && car_s - other_car_s < 2)) {
         // Other car is less than 50 meters in front of me, or less than 2
         // meters behind me!
-        return true;
+        car_right = true;
       }
     }
   }
-  return false;
 }
 
 enum Behavior {
@@ -343,9 +313,14 @@ void check_behavior(const vector<vector<double>> sensor_fusion,
         const int prev_path_size, double car_s, double car_d, int &current_lane,
         double &ref_velocity, Behavior &behavior) {
           
-  bool car_front = check_car_front(sensor_fusion, prev_path_size, car_s, current_lane);
-  bool car_left = check_car_left(sensor_fusion, prev_path_size, car_s, current_lane);
-  bool car_right = check_car_right(sensor_fusion, prev_path_size, car_s, current_lane);
+  bool car_front = false;
+  bool car_back = false;
+  bool car_left = false;
+  bool car_right = false; 
+  
+  check_car_surroundings(sensor_fusion, prev_path_size, car_s, current_lane,
+          car_front, car_back, car_left, car_right);
+
   double current_center = LANE_CENTER + LANE_WIDTH * current_lane;
   
   switch(behavior) {
