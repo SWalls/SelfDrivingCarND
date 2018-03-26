@@ -22,7 +22,11 @@ double rad2deg(double x) { return x * 180 / pi(); }
 
 const int PATH_SIZE = 50;
 const double HORIZON_LENGTH = 30.0; // meters
-double TIME_INC = .02; // seconds per car movement from one point to the next
+const double TIME_INC = .02; // seconds per car movement from one point to the next
+const int LANE_WIDTH = 4; // meters
+const int LANE_CENTER = 2; // meters
+const double TARGET_VELOCITY = 49.5; // mph
+const double VELOCITY_INC = .224; // mph = 0.1mps
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -182,7 +186,7 @@ tk::spline createSpline(const vector<double> previous_path_x,
   waypoints_y.push_back(ref_y);
 
   // In Frenet coordinates, add evenly spaced (30m apart) waypoints ahead of the car.
-  double next_d = 2 + 4 * current_lane;
+  double next_d = LANE_CENTER + LANE_WIDTH * current_lane;
   vector<double> waypoint_0 = getXY(car_s+30, next_d, maps_s, maps_x, maps_y);
   vector<double> waypoint_1 = getXY(car_s+60, next_d, maps_s, maps_x, maps_y);
   vector<double> waypoint_2 = getXY(car_s+90, next_d, maps_s, maps_x, maps_y);
@@ -253,6 +257,29 @@ void generatePath(const vector<double> previous_path_x,
   }
 }
 
+// Check if there is a car less than 30 meters in front of me.
+bool check_car_front(const vector<vector<double>> sensor_fusion,
+        const int prev_path_size, double car_s, const int current_lane) {
+  for (int i = 0; i < sensor_fusion.size(); i++) {
+    double other_car_d = sensor_fusion[i][6];
+    if (other_car_d > (LANE_WIDTH * current_lane) && 
+            other_car_d < (LANE_WIDTH * current_lane + LANE_WIDTH)) {
+      // The other car is in my lane!
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double speed = sqrt(vx*vx + vy*vy);
+      double other_car_s = sensor_fusion[i][5];
+      // Project the s value ahead into the future using the previous path.
+      other_car_s += ((double)prev_path_size*TIME_INC*speed);
+      if (other_car_s > car_s && other_car_s - car_s < 30) {
+        // Other car is less than 30 meters in front of me!
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // Parses the localization data being sent over uWebSockets.
 json parseLocalizationData(char *data, size_t length, bool &manualMode) {
   // "42" at the start of the message means there's a websocket message event.
@@ -320,7 +347,7 @@ int main() {
   int current_lane = 1;
 
   // The car's motion will target this velocity.
-  double ref_velocity = 49.5; // mph
+  double ref_velocity = 0; // mph
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                 &map_waypoints_dx,&map_waypoints_dy,&current_lane,
@@ -340,16 +367,30 @@ int main() {
       double car_speed = j[1]["speed"];
 
       // Previous path data given to the Planner
-      auto previous_path_x = j[1]["previous_path_x"];
-      auto previous_path_y = j[1]["previous_path_y"];
+      vector<double> previous_path_x = j[1]["previous_path_x"];
+      vector<double> previous_path_y = j[1]["previous_path_y"];
       // Previous path's end s and d values 
       double end_path_s = j[1]["end_path_s"];
       double end_path_d = j[1]["end_path_d"];
 
       // Sensor Fusion Data, a list of all other cars on the same side of the road.
-      auto sensor_fusion = j[1]["sensor_fusion"];
+      vector<vector<double>> sensor_fusion = j[1]["sensor_fusion"];
 
       int prev_path_size = previous_path_x.size();
+
+      if (prev_path_size > 0) {
+        car_s = end_path_s;
+      }
+
+      bool car_front = check_car_front(sensor_fusion, prev_path_size, car_s, current_lane);
+
+      if (car_front) {
+        // Slow down if there is a car in front of me.
+        ref_velocity -= VELOCITY_INC;
+      } else if (ref_velocity < TARGET_VELOCITY) {
+        // Speed up to the target velocity.
+        ref_velocity += VELOCITY_INC;
+      }
 
       // We will build the path starting from reference x,y,yaw states. We will
       // either reference the car's current state, or the end state of the
