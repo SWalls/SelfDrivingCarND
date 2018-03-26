@@ -20,6 +20,10 @@ constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
+const int PATH_SIZE = 50;
+const double HORIZON_LENGTH = 30.0; // meters
+double TIME_INC = .02; // seconds per car movement from one point to the next
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -168,14 +172,9 @@ double convertMphToMps(double mph) {
 	return mph/2.24; // rough conversion
 }
 
-struct SplineYaw {
-	tk::spline s;
-	double ref_yaw;
-};
-
 // Creates a spline that interpolates a set of generated waypoints 30, 60, and 90
 // meters ahead of the car's current location.
-SplineYaw createSpline(const vector<double> &previous_path_x, const vector<double> &previous_path_y, double car_x, double car_y, double car_yaw, double car_s, int current_lane, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y) {
+tk::spline createSpline(const vector<double> previous_path_x, const vector<double> previous_path_y, double ref_x, double ref_y, double prev_ref_x, double prev_ref_y, double ref_yaw, double car_s, int current_lane, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y) {
 	int prev_path_size = previous_path_x.size();
 
 	// First, create a list of widely spaced (x,y) waypoints, evenly spaced at 30m.
@@ -184,30 +183,7 @@ SplineYaw createSpline(const vector<double> &previous_path_x, const vector<doubl
 	vector<double> waypoints_x;
 	vector<double> waypoints_y;
 
-	// We will build these waypoints starting from reference x,y,yaw states. We will
-	// either reference the car's current state, or the end state of the previous path.
-	double ref_x;
-	double ref_y;
-	double ref_yaw;
-	double prev_ref_x;
-	double prev_ref_y;
-
-	if (prev_path_size < 2) {
-		// If previous path size is not big enough, use the car's current state.
-		ref_x = car_x;
-		ref_y = car_y;
-		ref_yaw = deg2rad(car_yaw);
-		prev_ref_x = car_x - cos(car_yaw);
-		prev_ref_y = car_y - sin(car_yaw);
-	} else {
-		// Otherwise, use the previous path's end point as starting reference.
-		ref_x = previous_path_x[prev_path_size-1];
-		ref_y = previous_path_y[prev_path_size-1];
-		prev_ref_x = previous_path_x[prev_path_size-2];
-		prev_ref_y = previous_path_y[prev_path_size-2];
-		ref_yaw = atan2(ref_y - prev_ref_y, ref_x - prev_ref_x);
-	}
-
+	// Begin with the 2 starting reference points.
 	waypoints_x.push_back(prev_ref_x);
 	waypoints_x.push_back(ref_x);
 	waypoints_y.push_back(prev_ref_y);
@@ -238,24 +214,12 @@ SplineYaw createSpline(const vector<double> &previous_path_x, const vector<doubl
 	// Create a spline to interpolate the waypoints.
 	tk::spline s;
 	s.set_points(waypoints_x, waypoints_y);
-
-	SplineYaw splineYaw;
-	splineYaw.s = s;
-	splineYaw.ref_yaw = ref_yaw;
-	return splineYaw;
+	return s;
 }
 
-struct PointVals {
-	vector<double> x_vals;
-	vector<double> y_vals;
-};
-
 // Generates the actual (x,y) points we will use for the path planner.
-PointVals getXYValsFromSpline(const vector<double> &previous_path_x, const vector<double> &previous_path_y, int path_size, tk::spline s, double ref_yaw, double ref_velocity) {
+void generatePath(const vector<double> previous_path_x, const vector<double> previous_path_y, tk::spline s, double ref_x, double ref_y, double ref_yaw, double ref_velocity, vector<double> &next_x_vals, vector<double> &next_y_vals) {
 	int prev_path_size = previous_path_x.size();
-
-	vector<double> next_x_vals;
-	vector<double> next_y_vals;
 
 	// Start the path with all the points leftover from the previous path.
 	for (int i = 0; i < prev_path_size; i++) {
@@ -267,38 +231,30 @@ PointVals getXYValsFromSpline(const vector<double> &previous_path_x, const vecto
 	// desired reference velocity. We do this by predicting a horizon 30m into
 	// the future, and linearly seperating the spline into sections. The length
 	// of each section is determined by the reference velocity.
-	double horizon_x = 30.0; // meters
+	double horizon_x = HORIZON_LENGTH;
 	double horizon_y = s(horizon_x);
-	double horizon_dist = sqrt(horizon_x * horizon_x + horizon_y * horizon_y);
-	double time_inc = .02; // seconds
-	double N_sections = horizon_dist / (time_inc * convertMphToMps(ref_velocity));
+	double horizon_dist = sqrt((horizon_x * horizon_x) + (horizon_y * horizon_y));
+	double N_sections = horizon_dist / (TIME_INC * convertMphToMps(ref_velocity));
 	double section_start_x = 0;
 
 	// Fill up the rest of the path!
-	for (int i = 0; i < path_size - prev_path_size; i++) {
+	for (int i = 0; i < PATH_SIZE - prev_path_size; i++) {
 		double section_x = section_start_x + (horizon_x / N_sections);
 		double section_y = s(section_x);
+
 		section_start_x = section_x;
 
-		double shift_x = section_x;
-		double shift_y = section_y;
+		// Rotate the point back to the reference orientation to undo
+		// the earlier rotation and get the point in global coordinates.
+		double x_global = section_x * cos(ref_yaw) - section_y * sin(ref_yaw);
+		double y_global = section_x * sin(ref_yaw) + section_y * cos(ref_yaw);
 
-		// Rotate the section point back to the reference orientation to undo
-		// the earlier rotation.
-		section_x = shift_x * cos(ref_yaw) - shift_y * sin(ref_yaw);
-		section_y = shift_x * sin(ref_yaw) + shift_y * cos(ref_yaw);
+		x_global += ref_x;
+		y_global += ref_y;
 
-		section_x += shift_x;
-		section_y += shift_y;
-
-		next_x_vals.push_back(section_x);
-		next_y_vals.push_back(section_y);
+		next_x_vals.push_back(x_global);
+		next_y_vals.push_back(y_global);
 	}
-
-	PointVals pointVals;
-	pointVals.x_vals = next_x_vals;
-	pointVals.y_vals = next_y_vals;
-	return pointVals;
 }
 
 int main() {
@@ -344,10 +300,7 @@ int main() {
 	// The car's motion will target this velocity.
 	double ref_velocity = 49.5; // mph
 
-	// The size of the path we want to generate.
-	int path_size = 50;
-
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&current_lane,&ref_velocity,&path_size](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&current_lane,&ref_velocity](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -367,47 +320,66 @@ int main() {
           // j[1] is the data JSON object
           
         	// Main car's localization Data
-          	double car_x = j[1]["x"];
-          	double car_y = j[1]["y"];
-          	double car_s = j[1]["s"];
-          	double car_d = j[1]["d"];
-          	double car_yaw = j[1]["yaw"];
-          	double car_speed = j[1]["speed"];
+					double car_x = j[1]["x"];
+					double car_y = j[1]["y"];
+					double car_s = j[1]["s"];
+					double car_d = j[1]["d"];
+					double car_yaw = j[1]["yaw"];
+					double car_speed = j[1]["speed"];
 
-          	// Previous path data given to the Planner
-          	auto previous_path_x = j[1]["previous_path_x"];
-          	auto previous_path_y = j[1]["previous_path_y"];
-          	// Previous path's end s and d values 
-          	double end_path_s = j[1]["end_path_s"];
-          	double end_path_d = j[1]["end_path_d"];
+					// Previous path data given to the Planner
+					auto previous_path_x = j[1]["previous_path_x"];
+					auto previous_path_y = j[1]["previous_path_y"];
+					// Previous path's end s and d values 
+					double end_path_s = j[1]["end_path_s"];
+					double end_path_d = j[1]["end_path_d"];
 
-          	// Sensor Fusion Data, a list of all other cars on the same side of the road.
-          	auto sensor_fusion = j[1]["sensor_fusion"];
+					// Sensor Fusion Data, a list of all other cars on the same side of the road.
+					auto sensor_fusion = j[1]["sensor_fusion"];
 
-						// Generate a spline that interpolates a set of waypoints, as well as the
-						// reference yaw of the car.
-						SplineYaw splineYaw = createSpline(previous_path_x, previous_path_y, car_x, car_y, car_yaw, car_s, current_lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+					int prev_path_size = previous_path_x.size();
 
-          	json msgJson;
+					// We will build the path starting from reference x,y,yaw states. We will
+					// either reference the car's current state, or the end state of the previous path.
+					double ref_x;
+					double ref_y;
+					double ref_yaw;
+					double prev_ref_x;
+					double prev_ref_y;
 
-						// Define the actual (x,y) points we will use for the path planner.
-						PointVals pointVals = getXYValsFromSpline(previous_path_x, previous_path_y, path_size, splineYaw.s, splineYaw.ref_yaw, ref_velocity);
-          	vector<double> next_x_vals = pointVals.x_vals;
-          	vector<double> next_y_vals = pointVals.y_vals;
-						
-						cout << "y-vals: ";
-						for (vector<double>::const_iterator i = next_y_vals.begin(); i != next_y_vals.end(); ++i)
-								cout << *i << ' ';
-						cout << '\n';
+					if (prev_path_size < 2) {
+						// If previous path size is not big enough, use the car's current state.
+						ref_x = car_x;
+						ref_y = car_y;
+						ref_yaw = deg2rad(car_yaw);
+						prev_ref_x = car_x - cos(car_yaw);
+						prev_ref_y = car_y - sin(car_yaw);
+					} else {
+						// Otherwise, use the previous path's end point as starting reference.
+						ref_x = previous_path_x[prev_path_size-1];
+						ref_y = previous_path_y[prev_path_size-1];
+						prev_ref_x = previous_path_x[prev_path_size-2];
+						prev_ref_y = previous_path_y[prev_path_size-2];
+						ref_yaw = atan2(ref_y - prev_ref_y, ref_x - prev_ref_x);
+					}
 
-          	msgJson["next_x"] = next_x_vals;
-          	msgJson["next_y"] = next_y_vals;
+					// Generate a spline that interpolates a set of waypoints, as well as the
+					// reference yaw of the car.
+					tk::spline spline = createSpline(previous_path_x, previous_path_y, ref_x, ref_y, prev_ref_x, prev_ref_y, ref_yaw, car_s, current_lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
-          	auto msg = "42[\"control\","+ msgJson.dump()+"]";
+					json msgJson;
 
-          	//this_thread::sleep_for(chrono::milliseconds(1000));
-          	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-          
+					// Define the actual (x,y) points we will use for the path planner.
+					vector<double> next_x_vals;
+					vector<double> next_y_vals;
+
+					generatePath(previous_path_x, previous_path_y, spline, ref_x, ref_y, ref_yaw, ref_velocity, next_x_vals, next_y_vals);
+					
+					msgJson["next_x"] = next_x_vals;
+					msgJson["next_y"] = next_y_vals;
+					auto msg = "42[\"control\","+ msgJson.dump()+"]";
+					//this_thread::sleep_for(chrono::milliseconds(1000));
+					ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
         // Manual driving
