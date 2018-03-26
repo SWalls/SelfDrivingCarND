@@ -44,27 +44,21 @@ double distance(double x1, double y1, double x2, double y2) {
 }
 
 int ClosestWaypoint(double x, double y, const vector<double> &maps_x,
-        const vector<double> &maps_y)
-{
-
+        const vector<double> &maps_y) {
   double closestLen = 100000; //large number
   int closestWaypoint = 0;
 
-  for(int i = 0; i < maps_x.size(); i++)
-  {
+  for (int i = 0; i < maps_x.size(); i++) {
     double map_x = maps_x[i];
     double map_y = maps_y[i];
     double dist = distance(x,y,map_x,map_y);
-    if(dist < closestLen)
-    {
+    if(dist < closestLen) {
       closestLen = dist;
       closestWaypoint = i;
     }
-
   }
 
   return closestWaypoint;
-
 }
 
 int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
@@ -79,13 +73,11 @@ int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
   double angle = fabs(theta-heading);
   angle = min(2*pi() - angle, angle);
 
-  if(angle > pi()/4)
-  {
+  if (angle > pi()/4) {
     closestWaypoint++;
-  if (closestWaypoint == maps_x.size())
-  {
-    closestWaypoint = 0;
-  }
+    if (closestWaypoint == maps_x.size()) {
+      closestWaypoint = 0;
+    }
   }
 
   return closestWaypoint;
@@ -98,8 +90,7 @@ vector<double> getFrenet(double x, double y, double theta,
 
   int prev_wp;
   prev_wp = next_wp-1;
-  if(next_wp == 0)
-  {
+  if(next_wp == 0) {
     prev_wp  = maps_x.size()-1;
   }
 
@@ -122,15 +113,13 @@ vector<double> getFrenet(double x, double y, double theta,
   double centerToPos = distance(center_x,center_y,x_x,x_y);
   double centerToRef = distance(center_x,center_y,proj_x,proj_y);
 
-  if(centerToPos <= centerToRef)
-  {
+  if(centerToPos <= centerToRef) {
     frenet_d *= -1;
   }
 
   // calculate s value
   double frenet_s = 0;
-  for(int i = 0; i < prev_wp; i++)
-  {
+  for(int i = 0; i < prev_wp; i++) {
     frenet_s += distance(maps_x[i],maps_y[i],maps_x[i+1],maps_y[i+1]);
   }
 
@@ -144,8 +133,7 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
         const vector<double> &maps_x, const vector<double> &maps_y) {
   int prev_wp = -1;
 
-  while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
-  {
+  while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1))) {
     prev_wp++;
   }
 
@@ -165,7 +153,6 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
   double y = seg_y + d*sin(perp_heading);
 
   return {x,y};
-
 }
 
 double convertMphToMps(double mph) {
