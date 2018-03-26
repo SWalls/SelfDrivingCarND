@@ -253,6 +253,32 @@ void generatePath(const vector<double> previous_path_x,
   }
 }
 
+// Parses the localization data being sent over uWebSockets.
+json parseLocalizationData(char *data, size_t length, bool &manualMode) {
+  // "42" at the start of the message means there's a websocket message event.
+  // The 4 signifies a websocket message
+  // The 2 signifies a websocket event
+  //auto sdata = string(data).substr(0, length);
+  //cout << sdata << endl;
+  if (length && length > 2 && data[0] == '4' && data[1] == '2') {
+
+    auto s = hasData(data);
+
+    if (s != "") {
+      json j = json::parse(s);
+      
+      string event = j[0].get<string>();
+
+      if (event == "telemetry") {
+        return j;
+      }
+    } else {
+      manualMode = true;
+    }
+  }
+  return json::array();
+}
+
 int main() {
   uWS::Hub h;
 
@@ -300,95 +326,82 @@ int main() {
                 &map_waypoints_dx,&map_waypoints_dy,&current_lane,
                 &ref_velocity](uWS::WebSocket<uWS::SERVER> ws, 
                 char *data, size_t length, uWS::OpCode opCode) {
-    // "42" at the start of the message means there's a websocket message event.
-    // The 4 signifies a websocket message
-    // The 2 signifies a websocket event
-    //auto sdata = string(data).substr(0, length);
-    //cout << sdata << endl;
-    if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
-      auto s = hasData(data);
+    bool manualMode = false;
+    json j = parseLocalizationData(data, length, manualMode);
 
-      if (s != "") {
-        auto j = json::parse(s);
-        
-        string event = j[0].get<string>();
-        
-        if (event == "telemetry") {
-          // j[1] is the data JSON object
-          
-          // Main car's localization Data
-          double car_x = j[1]["x"];
-          double car_y = j[1]["y"];
-          double car_s = j[1]["s"];
-          double car_d = j[1]["d"];
-          double car_yaw = j[1]["yaw"];
-          double car_speed = j[1]["speed"];
+    if (!j.empty()) {
+      // Main car's localization Data
+      double car_x = j[1]["x"];
+      double car_y = j[1]["y"];
+      double car_s = j[1]["s"];
+      double car_d = j[1]["d"];
+      double car_yaw = j[1]["yaw"];
+      double car_speed = j[1]["speed"];
 
-          // Previous path data given to the Planner
-          auto previous_path_x = j[1]["previous_path_x"];
-          auto previous_path_y = j[1]["previous_path_y"];
-          // Previous path's end s and d values 
-          double end_path_s = j[1]["end_path_s"];
-          double end_path_d = j[1]["end_path_d"];
+      // Previous path data given to the Planner
+      auto previous_path_x = j[1]["previous_path_x"];
+      auto previous_path_y = j[1]["previous_path_y"];
+      // Previous path's end s and d values 
+      double end_path_s = j[1]["end_path_s"];
+      double end_path_d = j[1]["end_path_d"];
 
-          // Sensor Fusion Data, a list of all other cars on the same side of the road.
-          auto sensor_fusion = j[1]["sensor_fusion"];
+      // Sensor Fusion Data, a list of all other cars on the same side of the road.
+      auto sensor_fusion = j[1]["sensor_fusion"];
 
-          int prev_path_size = previous_path_x.size();
+      int prev_path_size = previous_path_x.size();
 
-          // We will build the path starting from reference x,y,yaw states. We will
-          // either reference the car's current state, or the end state of the
-          // previous path.
-          double ref_x;
-          double ref_y;
-          double ref_yaw;
-          double prev_ref_x;
-          double prev_ref_y;
+      // We will build the path starting from reference x,y,yaw states. We will
+      // either reference the car's current state, or the end state of the
+      // previous path.
+      double ref_x;
+      double ref_y;
+      double ref_yaw;
+      double prev_ref_x;
+      double prev_ref_y;
 
-          if (prev_path_size < 2) {
-            // If previous path size is not big enough, use the car's current state.
-            ref_x = car_x;
-            ref_y = car_y;
-            ref_yaw = deg2rad(car_yaw);
-            prev_ref_x = car_x - cos(car_yaw);
-            prev_ref_y = car_y - sin(car_yaw);
-          } else {
-            // Otherwise, use the previous path's end point as starting reference.
-            ref_x = previous_path_x[prev_path_size-1];
-            ref_y = previous_path_y[prev_path_size-1];
-            prev_ref_x = previous_path_x[prev_path_size-2];
-            prev_ref_y = previous_path_y[prev_path_size-2];
-            ref_yaw = atan2(ref_y - prev_ref_y, ref_x - prev_ref_x);
-          }
-
-          // Generate a spline that interpolates a set of waypoints, as well as the
-          // reference yaw of the car.
-          tk::spline spline = createSpline(previous_path_x, previous_path_y,
-                  ref_x, ref_y, prev_ref_x, prev_ref_y, ref_yaw, car_s,
-                  current_lane, map_waypoints_s, map_waypoints_x,
-                  map_waypoints_y);
-
-          json msgJson;
-
-          // Define the actual (x,y) points we will use for the path planner.
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
-
-          generatePath(previous_path_x, previous_path_y, spline, ref_x, ref_y,
-                  ref_yaw, ref_velocity, next_x_vals, next_y_vals);
-          
-          msgJson["next_x"] = next_x_vals;
-          msgJson["next_y"] = next_y_vals;
-          auto msg = "42[\"control\","+ msgJson.dump()+"]";
-          //this_thread::sleep_for(chrono::milliseconds(1000));
-          ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-        }
+      if (prev_path_size < 2) {
+        // If previous path size is not big enough, use the car's current state.
+        ref_x = car_x;
+        ref_y = car_y;
+        ref_yaw = deg2rad(car_yaw);
+        prev_ref_x = car_x - cos(car_yaw);
+        prev_ref_y = car_y - sin(car_yaw);
       } else {
-        // Manual driving
-        std::string msg = "42[\"manual\",{}]";
-        ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+        // Otherwise, use the previous path's end point as starting reference.
+        ref_x = previous_path_x[prev_path_size-1];
+        ref_y = previous_path_y[prev_path_size-1];
+        prev_ref_x = previous_path_x[prev_path_size-2];
+        prev_ref_y = previous_path_y[prev_path_size-2];
+        ref_yaw = atan2(ref_y - prev_ref_y, ref_x - prev_ref_x);
       }
+
+      // Generate a spline that interpolates a set of waypoints, as well as the
+      // reference yaw of the car.
+      tk::spline spline = createSpline(previous_path_x, previous_path_y,
+              ref_x, ref_y, prev_ref_x, prev_ref_y, ref_yaw, car_s,
+              current_lane, map_waypoints_s, map_waypoints_x,
+              map_waypoints_y);
+
+      json msgJson;
+
+      // Define the actual (x,y) points we will use for the path planner.
+      vector<double> next_x_vals;
+      vector<double> next_y_vals;
+
+      generatePath(previous_path_x, previous_path_y, spline, ref_x, ref_y,
+              ref_yaw, ref_velocity, next_x_vals, next_y_vals);
+      
+      msgJson["next_x"] = next_x_vals;
+      msgJson["next_y"] = next_y_vals;
+      auto msg = "42[\"control\","+ msgJson.dump()+"]";
+      //this_thread::sleep_for(chrono::milliseconds(1000));
+      ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+    }
+    if (manualMode) {
+      // Manual driving
+      std::string msg = "42[\"manual\",{}]";
+      ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
     }
   });
 
