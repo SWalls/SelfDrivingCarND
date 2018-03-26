@@ -39,11 +39,12 @@ string hasData(string s) {
   return "";
 }
 
-double distance(double x1, double y1, double x2, double y2)
-{
+double distance(double x1, double y1, double x2, double y2) {
   return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
-int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vector<double> &maps_y)
+
+int ClosestWaypoint(double x, double y, const vector<double> &maps_x,
+        const vector<double> &maps_y)
 {
 
   double closestLen = 100000; //large number
@@ -66,9 +67,8 @@ int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vect
 
 }
 
-int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
-{
-
+int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
+        const vector<double> &maps_y) {
   int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
 
   double map_x = maps_x[closestWaypoint];
@@ -92,8 +92,8 @@ int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
 }
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-vector<double> getFrenet(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
-{
+vector<double> getFrenet(double x, double y, double theta,
+        const vector<double> &maps_x, const vector<double> &maps_y) {
   int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
 
   int prev_wp;
@@ -137,12 +137,11 @@ vector<double> getFrenet(double x, double y, double theta, const vector<double> 
   frenet_s += distance(0,0,proj_x,proj_y);
 
   return {frenet_s,frenet_d};
-
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
-{
+vector<double> getXY(double s, double d, const vector<double> &maps_s,
+        const vector<double> &maps_x, const vector<double> &maps_y) {
   int prev_wp = -1;
 
   while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
@@ -152,7 +151,8 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
   int wp2 = (prev_wp+1)%maps_x.size();
 
-  double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+  double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),
+                          (maps_x[wp2]-maps_x[prev_wp]));
   // the x,y,s along the segment
   double seg_s = (s-maps_s[prev_wp]);
 
@@ -172,9 +172,14 @@ double convertMphToMps(double mph) {
   return mph/2.24; // rough conversion
 }
 
-// Creates a spline that interpolates a set of generated waypoints 30, 60, and 90
-// meters ahead of the car's current location.
-tk::spline createSpline(const vector<double> previous_path_x, const vector<double> previous_path_y, double ref_x, double ref_y, double prev_ref_x, double prev_ref_y, double ref_yaw, double car_s, int current_lane, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y) {
+// Creates a spline that interpolates a set of generated waypoints 30, 60, and
+// 90 meters ahead of the car's current location.
+tk::spline createSpline(const vector<double> previous_path_x,
+        const vector<double> previous_path_y, double ref_x, double ref_y,
+        double prev_ref_x, double prev_ref_y, double ref_yaw, double car_s,
+        int current_lane, const vector<double> &maps_s,
+        const vector<double> &maps_x, const vector<double> &maps_y) {
+
   int prev_path_size = previous_path_x.size();
 
   // First, create a list of widely spaced (x,y) waypoints, evenly spaced at 30m.
@@ -218,7 +223,11 @@ tk::spline createSpline(const vector<double> previous_path_x, const vector<doubl
 }
 
 // Generates the actual (x,y) points we will use for the path planner.
-void generatePath(const vector<double> previous_path_x, const vector<double> previous_path_y, tk::spline s, double ref_x, double ref_y, double ref_yaw, double ref_velocity, vector<double> &next_x_vals, vector<double> &next_y_vals) {
+void generatePath(const vector<double> previous_path_x,
+        const vector<double> previous_path_y, tk::spline s, double ref_x,
+        double ref_y, double ref_yaw, double ref_velocity,
+        vector<double> &next_x_vals, vector<double> &next_y_vals) {
+
   int prev_path_size = previous_path_x.size();
 
   // Start the path with all the points leftover from the previous path.
@@ -300,8 +309,10 @@ int main() {
   // The car's motion will target this velocity.
   double ref_velocity = 49.5; // mph
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&current_lane,&ref_velocity](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                     uWS::OpCode opCode) {
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+                &map_waypoints_dx,&map_waypoints_dy,&current_lane,
+                &ref_velocity](uWS::WebSocket<uWS::SERVER> ws, 
+                char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -340,7 +351,8 @@ int main() {
           int prev_path_size = previous_path_x.size();
 
           // We will build the path starting from reference x,y,yaw states. We will
-          // either reference the car's current state, or the end state of the previous path.
+          // either reference the car's current state, or the end state of the
+          // previous path.
           double ref_x;
           double ref_y;
           double ref_yaw;
@@ -365,7 +377,10 @@ int main() {
 
           // Generate a spline that interpolates a set of waypoints, as well as the
           // reference yaw of the car.
-          tk::spline spline = createSpline(previous_path_x, previous_path_y, ref_x, ref_y, prev_ref_x, prev_ref_y, ref_yaw, car_s, current_lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          tk::spline spline = createSpline(previous_path_x, previous_path_y,
+                  ref_x, ref_y, prev_ref_x, prev_ref_y, ref_yaw, car_s,
+                  current_lane, map_waypoints_s, map_waypoints_x,
+                  map_waypoints_y);
 
           json msgJson;
 
@@ -373,7 +388,8 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
-          generatePath(previous_path_x, previous_path_y, spline, ref_x, ref_y, ref_yaw, ref_velocity, next_x_vals, next_y_vals);
+          generatePath(previous_path_x, previous_path_y, spline, ref_x, ref_y,
+                  ref_yaw, ref_velocity, next_x_vals, next_y_vals);
           
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
