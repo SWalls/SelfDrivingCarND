@@ -389,7 +389,7 @@ void check_behavior(const vector<vector<double>> sensor_fusion,
             // Check the right-most lane.
             bool car_in_right_lane = check_car_in_lane(sensor_fusion,
                     prev_path_size, car_s, 2, 30);
-            if (car_in_right_lane) {
+            if (!car_in_right_lane) {
               cout << "Prep right lane change!\n";
               behavior = PREP_CHANGE_LANES_RIGHT;
             }
@@ -397,7 +397,7 @@ void check_behavior(const vector<vector<double>> sensor_fusion,
             // Check the left-most lane.
             bool car_in_left_lane = check_car_in_lane(sensor_fusion,
                     prev_path_size, car_s, 0, 30);
-            if (car_in_left_lane) {
+            if (!car_in_left_lane) {
               cout << "Prep left lane change!\n";
               behavior = PREP_CHANGE_LANES_LEFT;
             }
