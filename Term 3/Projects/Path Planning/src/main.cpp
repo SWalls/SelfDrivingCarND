@@ -27,6 +27,7 @@ const int LANE_WIDTH = 4; // meters
 const int LANE_CENTER = 2; // meters
 const double TARGET_VELOCITY = 49.5; // mph
 const double VELOCITY_INC = .224; // mph = 0.1mps
+const double MIN_VELOCITY = 10; // mph
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -257,8 +258,7 @@ void generatePath(const vector<double> previous_path_x,
   }
 }
 
-// Check if there is a car less than 30 meters in front of me or behind me,
-// or if there is a car to the left or the right of me.
+// Check if there is a car in front, behind, to the left, or to the right.
 void check_car_surroundings(const vector<vector<double>> sensor_fusion,
         const int prev_path_size, double car_s, const int current_lane,
         bool &car_front, bool &car_back, bool &car_left, bool &car_right) {
@@ -276,25 +276,25 @@ void check_car_surroundings(const vector<vector<double>> sensor_fusion,
       if (other_car_s > car_s && other_car_s - car_s < 30) {
         // Other car is less than 30 meters in front of me!
         car_front = true;
-      } else if (other_car_s < car_s && car_s - other_car_s < 30) {
-        // Other car is less than 30 meters behind me!
+      } else if (other_car_s < car_s && car_s - other_car_s < 5) {
+        // Other car is less than 5 meters behind me!
         car_back = true;
       }
     } else if (other_car_d > (LANE_WIDTH * (current_lane - 1)) && 
             other_car_d < (LANE_WIDTH * (current_lane - 1) + LANE_WIDTH)) {
       // The other car is in the lane to the left of me!
-      if ((other_car_s > car_s && other_car_s - car_s < 50) || 
-              (other_car_s <= car_s && car_s - other_car_s < 5)) {
-        // Other car is less than 50 meters in front of me, or less than 2
+      if ((other_car_s > car_s && other_car_s - car_s < 30) || 
+              (other_car_s <= car_s && car_s - other_car_s < 2)) {
+        // Other car is less than 30 meters in front of me, or less than 2
         // meters behind me!
         car_left = true;
       }
     } else if (other_car_d > (LANE_WIDTH * (current_lane + 1)) && 
             other_car_d < (LANE_WIDTH * (current_lane + 1) + LANE_WIDTH)) {
       // The other car is in the lane to the right of me!
-      if ((other_car_s > car_s && other_car_s - car_s < 50) || 
+      if ((other_car_s > car_s && other_car_s - car_s < 30) || 
               (other_car_s <= car_s && car_s - other_car_s < 2)) {
-        // Other car is less than 50 meters in front of me, or less than 2
+        // Other car is less than 30 meters in front of me, or less than 2
         // meters behind me!
         car_right = true;
       }
@@ -302,8 +302,33 @@ void check_car_surroundings(const vector<vector<double>> sensor_fusion,
   }
 }
 
+// Check if there is a car less than dist meters in front of me in the given lane.
+bool check_car_in_lane(const vector<vector<double>> sensor_fusion,
+        const int prev_path_size, double car_s, const int lane, const int dist) {
+  for (int i = 0; i < sensor_fusion.size(); i++) {
+    double other_car_d = sensor_fusion[i][6];
+    if (other_car_d > (LANE_WIDTH * lane) && 
+            other_car_d < (LANE_WIDTH * lane + LANE_WIDTH)) {
+      // The other car is in my lane!
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double speed = sqrt(vx*vx + vy*vy);
+      double other_car_s = sensor_fusion[i][5];
+      // Project the s value ahead into the future using the previous path.
+      other_car_s += ((double)prev_path_size*TIME_INC*speed);
+      if (other_car_s > car_s && other_car_s - car_s < dist) {
+        // Other car is less than dist meters in front of me!
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 enum Behavior {
   FORWARD,
+  PREP_CHANGE_LANES_LEFT,
+  PREP_CHANGE_LANES_RIGHT,
   CHANGE_LANES_LEFT,
   CHANGE_LANES_RIGHT
 };
@@ -328,25 +353,103 @@ void check_behavior(const vector<vector<double>> sensor_fusion,
       if (car_front) {
         // There is a car in front of me!
         if (current_lane > 0 && !car_left) {
-          // Left lane is open, change to the left lane!
-          cout << "Changing lanes to the left!\n";
-          behavior = CHANGE_LANES_LEFT;
-          current_lane--;
+          // Left lane looks open.
+          bool car_ahead_left = check_car_in_lane(sensor_fusion,
+                  prev_path_size, car_s, current_lane-1, 50);
+          if (car_right || !car_ahead_left || current_lane == 2) {
+            // Can't change right, or left lane is clear, so let's change left.
+            cout << "Prep left lane change!\n";
+            behavior = PREP_CHANGE_LANES_LEFT;
+          } else {
+            // Left lane is not clear up ahead, so let's change right.
+            cout << "Prep right lane change!\n";
+            behavior = PREP_CHANGE_LANES_RIGHT;
+          }
         } else if (current_lane < 2 && !car_right) {
-          // Right lane is open, change to the right lane!
-          cout << "Changing lanes to the right!\n";
-          behavior = CHANGE_LANES_RIGHT;
-          current_lane++;
+          // Right lane looks open.
+          bool car_ahead_right = check_car_in_lane(sensor_fusion,
+                  prev_path_size, car_s, current_lane+1, 50);
+          if (car_left || !car_ahead_right || current_lane == 0) {
+            // Can't change left, or right lane is clear, so let's change right.
+            cout << "Prep right lane change!\n";
+            behavior = PREP_CHANGE_LANES_RIGHT;
+          } else {
+            // Right lane is not clear up ahead, so let's change left.
+            cout << "Prep left lane change!\n";
+            behavior = PREP_CHANGE_LANES_LEFT;
+          }
         } else {
           // Lanes on both sides are blocked. Just slow down so we don't hit 
           // the car in front.
-          if (ref_velocity > 0) {
+          if (!car_back && ref_velocity > MIN_VELOCITY) {
             ref_velocity -= VELOCITY_INC;
+          }
+          // Now check the other lanes to see if we can move further away.
+          if (current_lane == 0) {
+            // Check the right-most lane.
+            bool car_in_right_lane = check_car_in_lane(sensor_fusion,
+                    prev_path_size, car_s, 2, 30);
+            if (car_in_right_lane) {
+              cout << "Prep right lane change!\n";
+              behavior = PREP_CHANGE_LANES_RIGHT;
+            }
+          } else if (current_lane == 2) {
+            // Check the left-most lane.
+            bool car_in_left_lane = check_car_in_lane(sensor_fusion,
+                    prev_path_size, car_s, 0, 30);
+            if (car_in_left_lane) {
+              cout << "Prep left lane change!\n";
+              behavior = PREP_CHANGE_LANES_LEFT;
+            }
           }
         }
       } else if (ref_velocity < TARGET_VELOCITY) {
         // Speed up to the target velocity. Go forward!
         ref_velocity += VELOCITY_INC;
+      }
+      break;
+    case PREP_CHANGE_LANES_LEFT:
+      if (car_left) {
+        // There's a car to the left! We can't change lanes yet.
+        if (car_back && !car_front) {
+          // There's a car behind us!
+          if (ref_velocity < TARGET_VELOCITY) {
+            // Speed up so we don't kill the guy behind us.
+            ref_velocity += VELOCITY_INC;
+          }
+        } else {
+          // Slow down until it's safe to change lanes.
+          if (ref_velocity > MIN_VELOCITY) {
+            ref_velocity -= VELOCITY_INC;
+          }
+        }
+      } else {
+        // It's safe! Do the lane change.
+        cout << "Changing lanes to the left!\n";
+        current_lane--;
+        behavior = CHANGE_LANES_LEFT;
+      }
+      break;
+    case PREP_CHANGE_LANES_RIGHT:
+      if (car_right) {
+        // There's a car to the right! We can't change lanes yet.
+        if (car_back && !car_front) {
+          // There's a car behind us!
+          if (ref_velocity < TARGET_VELOCITY) {
+            // Speed up so we don't kill the guy behind us.
+            ref_velocity += VELOCITY_INC;
+          }
+        } else {
+          // Slow down until it's safe to change lanes.
+          if (ref_velocity > MIN_VELOCITY) {
+            ref_velocity -= VELOCITY_INC;
+          }
+        }
+      } else {
+        // It's safe! Do the lane change.
+        cout << "Changing lanes to the right!\n";
+        current_lane++;
+        behavior = CHANGE_LANES_RIGHT;
       }
       break;
     case CHANGE_LANES_LEFT:
@@ -358,7 +461,7 @@ void check_behavior(const vector<vector<double>> sensor_fusion,
       if (car_front) {
         // There is a car in front of me!
         // Slow down so we don't hit the car in front.
-        if (ref_velocity > 0) {
+        if (ref_velocity > MIN_VELOCITY) {
           ref_velocity -= VELOCITY_INC;
         }
       } else if (ref_velocity < TARGET_VELOCITY) {
@@ -375,7 +478,7 @@ void check_behavior(const vector<vector<double>> sensor_fusion,
       if (car_front) {
         // There is a car in front of me!
         // Slow down so we don't hit the car in front.
-        if (ref_velocity > 0) {
+        if (ref_velocity > MIN_VELOCITY) {
           ref_velocity -= VELOCITY_INC;
         }
       } else if (ref_velocity < TARGET_VELOCITY) {
