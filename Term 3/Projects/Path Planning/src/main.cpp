@@ -280,6 +280,137 @@ bool check_car_front(const vector<vector<double>> sensor_fusion,
   return false;
 }
 
+// Check if there is a car to the left of me, or a car that will be to the left
+// of me soon.
+bool check_car_left(const vector<vector<double>> sensor_fusion,
+        const int prev_path_size, double car_s, const int current_lane) {
+  for (int i = 0; i < sensor_fusion.size(); i++) {
+    double other_car_d = sensor_fusion[i][6];
+    if (other_car_d > (LANE_WIDTH * (current_lane - 1)) && 
+            other_car_d < (LANE_WIDTH * (current_lane - 1) + LANE_WIDTH)) {
+      // The other car is in the lane to the left of me!
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double speed = sqrt(vx*vx + vy*vy);
+      double other_car_s = sensor_fusion[i][5];
+      // Project the s value ahead into the future using the previous path.
+      other_car_s += ((double)prev_path_size*TIME_INC*speed);
+      if ((other_car_s > car_s && other_car_s - car_s < 50) || 
+              (other_car_s <= car_s && car_s - other_car_s < 5)) {
+        // Other car is less than 50 meters in front of me, or less than 2
+        // meters behind me!
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Check if there is a car to the right of me, or a car that will be to the right
+// of me soon.
+bool check_car_right(const vector<vector<double>> sensor_fusion,
+        const int prev_path_size, double car_s, const int current_lane) {
+  for (int i = 0; i < sensor_fusion.size(); i++) {
+    double other_car_d = sensor_fusion[i][6];
+    if (other_car_d > (LANE_WIDTH * (current_lane + 1)) && 
+            other_car_d < (LANE_WIDTH * (current_lane + 1) + LANE_WIDTH)) {
+      // The other car is in the lane to the left of me!
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double speed = sqrt(vx*vx + vy*vy);
+      double other_car_s = sensor_fusion[i][5];
+      // Project the s value ahead into the future using the previous path.
+      other_car_s += ((double)prev_path_size*TIME_INC*speed);
+      if ((other_car_s > car_s && other_car_s - car_s < 50) || 
+              (other_car_s <= car_s && car_s - other_car_s < 2)) {
+        // Other car is less than 50 meters in front of me, or less than 2
+        // meters behind me!
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+enum Behavior {
+  FORWARD,
+  CHANGE_LANES_LEFT,
+  CHANGE_LANES_RIGHT
+};
+
+// Use subsumption architecture to ensure the car avoids collisions.
+void check_behavior(const vector<vector<double>> sensor_fusion,
+        const int prev_path_size, double car_s, double car_d, int &current_lane,
+        double &ref_velocity, Behavior &behavior) {
+          
+  bool car_front = check_car_front(sensor_fusion, prev_path_size, car_s, current_lane);
+  bool car_left = check_car_left(sensor_fusion, prev_path_size, car_s, current_lane);
+  bool car_right = check_car_right(sensor_fusion, prev_path_size, car_s, current_lane);
+  double current_center = LANE_CENTER + LANE_WIDTH * current_lane;
+  
+  switch(behavior) {
+    case FORWARD:
+      if (car_front) {
+        // There is a car in front of me!
+        if (current_lane > 0 && !car_left) {
+          // Left lane is open, change to the left lane!
+          cout << "Changing lanes to the left!\n";
+          behavior = CHANGE_LANES_LEFT;
+          current_lane--;
+        } else if (current_lane < 2 && !car_right) {
+          // Right lane is open, change to the right lane!
+          cout << "Changing lanes to the right!\n";
+          behavior = CHANGE_LANES_RIGHT;
+          current_lane++;
+        } else {
+          // Lanes on both sides are blocked. Just slow down so we don't hit 
+          // the car in front.
+          if (ref_velocity > 0) {
+            ref_velocity -= VELOCITY_INC;
+          }
+        }
+      } else if (ref_velocity < TARGET_VELOCITY) {
+        // Speed up to the target velocity. Go forward!
+        ref_velocity += VELOCITY_INC;
+      }
+      break;
+    case CHANGE_LANES_LEFT:
+      if (abs(car_d - current_center) < 0.1 /* meters */) {
+        // I'm at the center of the new lane! Continue moving forward.
+        cout << "Going forward!\n";
+        behavior = FORWARD;
+      }
+      if (car_front) {
+        // There is a car in front of me!
+        // Slow down so we don't hit the car in front.
+        if (ref_velocity > 0) {
+          ref_velocity -= VELOCITY_INC;
+        }
+      } else if (ref_velocity < TARGET_VELOCITY) {
+        // Speed up to the target velocity.
+        ref_velocity += VELOCITY_INC;
+      }
+      break;
+    case CHANGE_LANES_RIGHT:
+      if (abs(car_d - current_center) < 0.1 /* meters */) {
+        // I'm at the center of the new lane! Continue moving forward.
+        cout << "Going forward!\n";
+        behavior = FORWARD;
+      }
+      if (car_front) {
+        // There is a car in front of me!
+        // Slow down so we don't hit the car in front.
+        if (ref_velocity > 0) {
+          ref_velocity -= VELOCITY_INC;
+        }
+      } else if (ref_velocity < TARGET_VELOCITY) {
+        // Speed up to the target velocity.
+        ref_velocity += VELOCITY_INC;
+      }
+      break;
+  }
+}
+
 // Parses the localization data being sent over uWebSockets.
 json parseLocalizationData(char *data, size_t length, bool &manualMode) {
   // "42" at the start of the message means there's a websocket message event.
@@ -349,9 +480,12 @@ int main() {
   // The car's motion will target this velocity.
   double ref_velocity = 0; // mph
 
+  // This is the starting/default behavior of the car (go forward).
+  Behavior behavior = FORWARD;
+
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                 &map_waypoints_dx,&map_waypoints_dy,&current_lane,
-                &ref_velocity](uWS::WebSocket<uWS::SERVER> ws, 
+                &ref_velocity,&behavior](uWS::WebSocket<uWS::SERVER> ws, 
                 char *data, size_t length, uWS::OpCode opCode) {
 
     bool manualMode = false;
@@ -382,15 +516,9 @@ int main() {
         car_s = end_path_s;
       }
 
-      bool car_front = check_car_front(sensor_fusion, prev_path_size, car_s, current_lane);
-
-      if (car_front) {
-        // Slow down if there is a car in front of me.
-        ref_velocity -= VELOCITY_INC;
-      } else if (ref_velocity < TARGET_VELOCITY) {
-        // Speed up to the target velocity.
-        ref_velocity += VELOCITY_INC;
-      }
+      // Use subsumption architecture to ensure the car avoids collisions.
+      check_behavior(sensor_fusion, prev_path_size, car_s, car_d, current_lane,
+              ref_velocity, behavior);
 
       // We will build the path starting from reference x,y,yaw states. We will
       // either reference the car's current state, or the end state of the
