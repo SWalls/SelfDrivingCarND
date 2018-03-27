@@ -34,6 +34,16 @@ Subsumption architecture helps the car to avoid collisions and pass slow cars ah
    
 By combining this behavior model with the waypoint generation and spline interpolation, I've created a pretty robust path planning algorithm. It's not quite as sophisticated as something like A*, but it avoids collisions and finds an optimal & drivable path in most cases, all while staying within comfortable driving parameters for acceleration and jerk.
 
+### Rubric Checklist
+
+   - ✓ The code compiles correctly.
+   - ✓ The car is able to drive at least 4.32 miles without incident.
+   - ✓ The car drives according to the speed limit.
+   - ✓ The car does not exceed a total acceleration of 10 m/s^2 and a jerk of 10 m/s^3.
+   - ✓ The car must not come into contact with any of the other cars on the road (no collisions).
+   - ✓ The car stays in its lane, except for the time between changing lanes.
+   - ✓ The car is able to smoothly change lanes when it makes sense to do so, such as when behind a slower moving car and an adjacent lane is clear of other traffic.
+
 #### The map of the highway is in data/highway_map.txt
 Each waypoint in the list contains  [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
 
