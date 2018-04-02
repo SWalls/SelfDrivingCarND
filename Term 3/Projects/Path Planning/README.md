@@ -2,10 +2,47 @@
 Self-Driving Car Engineer Nanodegree Program
    
 ### Simulator.
-You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).
+You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab](https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).
 
 ### Goals
 In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
+
+## Solution
+
+My solution to the Path Planning project involves a two-part approach:
+
+1. Use [subsumption architecture](https://en.wikipedia.org/wiki/Subsumption_architecture) to encode the current behavior of the car, with 5 possible behaviors:
+   1. **FORWARD** - go forward in the current lane toward the target velocity (this is the default/starting behavior)
+   2. **PREP_CHANGE_LANES_LEFT** - prepare to change lanes to the left
+   3. **PREP_CHANGE_LANES_RIGHT** - prepare to change lanes to the right
+   4. **CHANGE_LANES_LEFT** - change to the left lane
+   5. **CHANGE_LANES_RIGHT** - change to the right lane
+   
+2. Use the previous path (if available) combined with waypoints 30, 60, and 90 meters ahead of the car's current position/orientation to generate a smooth path interpolated with a spline, with points spaced such that the car will reach a desired velocity and a desired lane.
+
+Subsumption architecture helps the car to avoid collisions and pass slow cars ahead when another lane is clear, so as to find a near-optimal path to the end of the track. For example, when the car has the **FORWARD** behavior, if we detect another car in front of us (using the sensor fusion data), we do the following:
+
+1. Check if the left lane looks open (up to 30m ahead).
+   1. If the left lane is clear up to 50m ahead, or if we can't change to the right lane, change to the left lane to pass the car ahead.
+   2. Otherwise, if the left lane is blocked 50m ahead and the right lane is open, change to the right lane to pass the car ahead.
+2. If the left lane is blocked, check if the right lane looks open (up to 30m ahead).
+   1. If the right lane is clear up to 50m ahead, or if we can't change to the left lane, change to the right lane to pass the car ahead.
+   2. Otherwise, if the right lane is blocked 50m ahead and the left lane is open, change to the left lane to pass the car ahead.
+3. If both lanes are blocked, start slowing down to avoid hitting the car in front of us.
+   1. If we are in the left-most lane, check if the right-most lane looks open (up to 30m ahead). If it's clear, prepare to change lanes to the right to get into the right-most lane to pass the cars ahead.
+   2. Otherwise, if we are in the right-most lane, check if the left-most lane looks open (up to 30m ahead). If it's clear, prepare to change lanes to the left to get into the left-most lane to pass the cars ahead.
+   
+By combining this behavior model with the waypoint generation and spline interpolation, I've created a pretty robust path planning algorithm. It's not quite as sophisticated as something like A*, but it avoids collisions and finds an optimal & drivable path in most cases, all while staying within comfortable driving parameters for acceleration and jerk.
+
+### Rubric Checklist
+
+   - ✓ The code compiles correctly.
+   - ✓ The car is able to drive at least 4.32 miles without incident.
+   - ✓ The car drives according to the speed limit.
+   - ✓ The car does not exceed a total acceleration of 10 m/s^2 and a jerk of 10 m/s^3.
+   - ✓ The car must not come into contact with any of the other cars on the road (no collisions).
+   - ✓ The car stays in its lane, except for the time between changing lanes.
+   - ✓ The car is able to smoothly change lanes when it makes sense to do so, such as when behind a slower moving car and an adjacent lane is clear of other traffic.
 
 #### The map of the highway is in data/highway_map.txt
 Each waypoint in the list contains  [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
