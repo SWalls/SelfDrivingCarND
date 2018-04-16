@@ -24,8 +24,6 @@ def load_vgg(sess, vgg_path):
     :param vgg_path: Path to vgg folder, containing "variables/" and "saved_model.pb"
     :return: Tuple of Tensors from VGG model (image_input, keep_prob, layer3_out, layer4_out, layer7_out)
     """
-    # TODO: Implement function
-    #   Use tf.saved_model.loader.load to load the model and weights
     vgg_tag = 'vgg16'
     vgg_input_tensor_name = 'image_input:0'
     vgg_keep_prob_tensor_name = 'keep_prob:0'
@@ -54,8 +52,34 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :param num_classes: Number of classes to classify
     :return: The Tensor for the last layer of output
     """
-    # TODO: Implement function
-    return None
+    reg = tf.contrib.layers.l2_regularizer(1e-3)
+
+    # 1x1 convolution of vgg layer 7
+    conv_7 = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, strides=(1,1),
+                                padding='same', kernel_regularizer=reg)
+    # upsample
+    output_7 = tf.layers.conv2d_transpose(conv_7, num_classes, 4, strides=(2,2),
+                                            padding='same', kernel_regularizer=reg)
+
+    # 1x1 convolution of vgg layer 4
+    conv_4 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, strides=(1,1),
+                                padding='same', kernel_regularizer=reg)
+    # skip connection
+    skip_4 = tf.add(output_7, conv_4)
+    # upsample
+    output_4 = tf.layers.conv2d_transpose(skip_4, num_classes, 4, strides=(2,2),
+                                            padding='same', kernel_regularizer=reg)
+
+    # 1x1 convolution of vgg layer 3
+    conv_3 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, strides=(1,1),
+                                padding='same', kernel_regularizer=reg)
+    # skip connection
+    skip_3 = tf.add(output_4, conv_3)
+    # upsample
+    output_3 = tf.layers.conv2d_transpose(skip_3, num_classes, 4, strides=(2,2),
+                                            padding='same', kernel_regularizer=reg)
+
+    return output_3
 tests.test_layers(layers)
 
 
